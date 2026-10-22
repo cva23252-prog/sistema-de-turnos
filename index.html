@@ -1,0 +1,314 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sistema de Gestión de Turnos Médicos</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+</head>
+<body class="bg-slate-100 font-sans text-slate-800 min-h-screen flex flex-col">
+
+    <!-- APP CONTAINER -->
+    <div id="app" class="flex-grow flex flex-col"></div>
+
+    <script>
+        // --- ESTADO GLOBAL DE LA APLICACIÓN (MOCK DATA) ---
+        const state = {
+            usuarioActual: null,
+            medicoSeleccionado: null,
+            medicos: [
+                { id: 1, nombre: "Dr. Roberto Gómez", especialidad: "Cardiología", matricula: "M.P. 3421", horario: "08:00 - 13:00", avatar: "https://images.unsplash.com/photo-1622253692010-333f2da6031d?w=150&auto=format&fit=crop&q=80" },
+                { id: 2, nombre: "Dra. María Laura Juárez", especialidad: "Pediatría", matricula: "M.P. 4105", horario: "14:00 - 19:00", avatar: "https://images.unsplash.com/photo-1594824813566-78853a8019e1?w=150&auto=format&fit=crop&q=80" },
+                { id: 3, nombre: "Dr. Carlos Santillán", especialidad: "Traumatología", matricula: "M.P. 2890", horario: "09:00 - 16:00", avatar: "https://images.unsplash.com/photo-1537368910025-700350fe46c7?w=150&auto=format&fit=crop&q=80" },
+                { id: 4, nombre: "Dra. Ana Florencia Silva", especialidad: "Dermatología", matricula: "M.P. 5120", horario: "08:00 - 12:00", avatar: "https://images.unsplash.com/photo-1559839734-2b71ea197ec2?w=150&auto=format&fit=crop&q=80" }
+            ],
+            turnos: [
+                {
+                    id: 1,
+                    medicoId: 1,
+                    paciente: "Lucas Peralta",
+                    dni: "38123456",
+                    fechaNacimiento: "1994-05-12",
+                    edad: 30,
+                    barrio: "Centro",
+                    sexo: "Masculino",
+                    fechaHora: "2026-10-23T09:00",
+                    obraSocial: "IOSEP",
+                    estado: "En espera"
+                },
+                {
+                    id: 2,
+                    medicoId: 1,
+                    paciente: "Mariana Albarracín",
+                    dni: "40555888",
+                    fechaNacimiento: "1997-11-03",
+                    edad: 28,
+                    barrio: "Autonomía",
+                    sexo: "Femenino",
+                    fechaHora: "2026-10-23T09:30",
+                    obraSocial: "OSDE",
+                    estado: "Atendido"
+                }
+            ],
+            modalTurnoAbierto: false,
+            filtroMedicoHistorial: "todos"
+        };
+
+        // --- RENDERIZADO PRINCIPAL ---
+        function render() {
+            const app = document.getElementById('app');
+            if (!state.usuarioActual) {
+                app.innerHTML = renderLogin();
+                initLoginEvents();
+            } else {
+                app.innerHTML = renderDashboard();
+                initDashboardEvents();
+                lucide.createIcons();
+            }
+        }
+
+        // --- VISTA LOGIN ---
+        function renderLogin() {
+            return `
+            <div class="min-h-screen bg-gradient-to-br from-teal-700 via-teal-800 to-slate-900 flex items-center justify-center p-4">
+                <div class="bg-white p-8 rounded-2xl shadow-2xl w-full max-w-md border border-slate-100">
+                    <div class="text-center mb-8">
+                        <div class="bg-teal-100 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-3 text-teal-700">
+                            <i data-lucide="hospital" class="w-8 h-8"></i>
+                        </div>
+                        <h1 class="text-2xl font-bold text-slate-800">Consultorio Privado</h1>
+                        <p class="text-slate-500 text-sm mt-1">Acceso Exclusivo para Recepción / Secretaría</p>
+                    </div>
+
+                    <form id="formLogin" class="space-y-5">
+                        <div>
+                            <label class="block text-sm font-semibold text-slate-700 mb-1">Usuario</label>
+                            <div class="relative">
+                                <span class="absolute inset-y-0 left-0 flex items-center pl-3 text-slate-400">
+                                    <i data-lucide="user" class="w-5 h-5"></i>
+                                </span>
+                                <input type="text" id="usuario" value="secretaria" required
+                                    class="w-full pl-10 pr-4 py-2.5 rounded-lg border border-slate-300 focus:ring-2 focus:ring-teal-500 focus:border-teal-500 outline-none transition"
+                                    placeholder="Ingrese su usuario">
+                            </div>
+                        </div>
+
+                        <div>
+                            <label class="block text-sm font-semibold text-slate-700 mb-1">Contraseña</label>
+                            <div class="relative">
+                                <span class="absolute inset-y-0 left-0 flex items-center pl-3 text-slate-400">
+                                    <i data-lucide="lock" class="w-5 h-5"></i>
+                                </span>
+                                <input type="password" id="password" value="1234" required
+                                    class="w-full pl-10 pr-4 py-2.5 rounded-lg border border-slate-300 focus:ring-2 focus:ring-teal-500 focus:border-teal-500 outline-none transition"
+                                    placeholder="••••••••">
+                            </div>
+                        </div>
+
+                        <div id="errorLogin" class="hidden bg-red-50 text-red-600 p-3 rounded-lg text-sm text-center font-medium">
+                            Usuario o contraseña incorrectos
+                        </div>
+
+                        <button type="submit"
+                            class="w-full bg-teal-600 hover:bg-teal-700 text-white font-semibold py-3 rounded-lg shadow-lg shadow-teal-600/30 transition duration-200 flex items-center justify-center gap-2">
+                            <span>Ingresar al Sistema</span>
+                            <i data-lucide="arrow-right" class="w-5 h-5"></i>
+                        </button>
+                    </form>
+
+                    <div class="mt-6 text-xs text-center text-slate-400 bg-slate-50 p-3 rounded-lg border border-slate-200">
+                        <span class="font-semibold text-slate-600">Credenciales Demo:</span><br>
+                        Usuario: <code class="text-teal-700 font-bold">secretaria</code> | Clave: <code class="text-teal-700 font-bold">1234</code>
+                    </div>
+                </div>
+            </div>
+            `;
+        }
+
+        // --- VISTA DASHBOARD RECEPCIÓN ---
+        function renderDashboard() {
+            return `
+            <!-- HEADER -->
+            <header class="bg-white border-b border-slate-200 sticky top-0 z-30 shadow-sm">
+                <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3 flex justify-between items-center">
+                    <div class="flex items-center gap-3">
+                        <div class="bg-teal-600 text-white p-2 rounded-lg">
+                            <i data-lucide="stethoscope" class="w-6 h-6"></i>
+                        </div>
+                        <div>
+                            <h1 class="font-bold text-slate-800 text-lg leading-tight">Centro Médico San Martín</h1>
+                            <p class="text-xs text-slate-500">Panel de Control de Recepción</p>
+                        </div>
+                    </div>
+                    <div class="flex items-center gap-4">
+                        <div class="text-right hidden sm:block">
+                            <p class="text-sm font-semibold text-slate-700">${state.usuarioActual.nombre}</p>
+                            <p class="text-xs text-teal-600 font-medium">Recepción / Secretaria</p>
+                        </div>
+                        <button id="btnCerrarSesion" class="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition" title="Cerrar Sesión">
+                            <i data-lucide="log-out" class="w-5 h-5"></i>
+                        </button>
+                    </div>
+                </div>
+            </header>
+
+            <!-- CONTENIDO PRINCIPAL -->
+            <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 flex-grow w-full space-y-8">
+                
+                <!-- SECCIÓN 1: SELECCIÓN DE MÉDICO PARA NUEVO TURNO -->
+                <section>
+                    <div class="flex justify-between items-end mb-4">
+                        <div>
+                            <h2 class="text-xl font-bold text-slate-800">1. Médicos en Consultorio</h2>
+                            <p class="text-slate-500 text-sm">Seleccione el profesional para programar una nueva cita con un paciente.</p>
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
+                        ${state.medicos.map(medico => `
+                            <div class="bg-white rounded-xl border border-slate-200 shadow-sm hover:shadow-md transition p-5 flex flex-col justify-between group">
+                                <div>
+                                    <div class="flex items-center gap-4 mb-3">
+                                        <img src="${medico.avatar}" alt="${medico.nombre}" class="w-14 h-14 rounded-full object-cover border-2 border-teal-500/20">
+                                        <div>
+                                            <h3 class="font-bold text-slate-800 text-base group-hover:text-teal-600 transition">${medico.nombre}</h3>
+                                            <span class="inline-block bg-teal-50 text-teal-700 text-xs font-semibold px-2.5 py-0.5 rounded-full border border-teal-200 mt-1">
+                                                ${medico.especialidad}
+                                            </span>
+                                        </div>
+                                    </div>
+                                    <div class="space-y-1 text-xs text-slate-500 mt-2 border-t border-slate-100 pt-3">
+                                        <p class="flex items-center gap-1.5"><i data-lucide="id-card" class="w-4 h-4 text-slate-400"></i> ${medico.matricula}</p>
+                                        <p class="flex items-center gap-1.5"><i data-lucide="clock" class="w-4 h-4 text-slate-400"></i> ${medico.horario}</p>
+                                    </div>
+                                </div>
+                                <button onclick="abrirModalNuevoTurno(${medico.id})" 
+                                    class="mt-4 w-full bg-slate-900 hover:bg-teal-600 text-white text-sm font-semibold py-2.5 px-4 rounded-lg transition duration-200 flex items-center justify-center gap-2">
+                                    <i data-lucide="calendar-plus" class="w-4 h-4"></i>
+                                    <span>Agendar Turno</span>
+                                </button>
+                            </div>
+                        `).join('')}
+                    </div>
+                </section>
+
+                <!-- SECCIÓN 2: AGENDA Y HISTORIAL DE TURNOS DEL DÍA -->
+                <section class="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+                    <div class="p-5 border-b border-slate-200 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                        <div>
+                            <h2 class="text-xl font-bold text-slate-800">2. Agenda de Turnos Programados</h2>
+                            <p class="text-slate-500 text-sm">Administre los estados de los pacientes en sala de espera.</p>
+                        </div>
+                        <div class="flex items-center gap-3 w-full sm:w-auto">
+                            <label class="text-xs font-semibold text-slate-500 uppercase tracking-wider whitespace-nowrap">Filtrar por Médico:</label>
+                            <select id="filtroMedico" onchange="filtrarTurnos(this.value)" class="bg-slate-50 border border-slate-300 text-slate-700 text-sm rounded-lg px-3 py-2 outline-none focus:ring-2 focus:ring-teal-500 w-full sm:w-auto">
+                                <option value="todos">Todos los Médicos</option>
+                                ${state.medicos.map(m => `<option value="${m.id}" ${state.filtroMedicoHistorial == m.id ? 'selected' : ''}>${m.nombre}</option>`).join('')}
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left border-collapse">
+                            <thead>
+                                <tr class="bg-slate-50 text-slate-500 text-xs uppercase font-semibold border-b border-slate-200">
+                                    <th class="py-3.5 px-4">Hora</th>
+                                    <th class="py-3.5 px-4">Paciente / DNI</th>
+                                    <th class="py-3.5 px-4">Datos Personales</th>
+                                    <th class="py-3.5 px-4">Médico</th>
+                                    <th class="py-3.5 px-4">Obra Social</th>
+                                    <th class="py-3.5 px-4">Estado</th>
+                                    <th class="py-3.5 px-4 text-right">Acción</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-slate-100 text-sm">
+                                ${obtenerTurnosFiltrados().length === 0 ? `
+                                    <tr>
+                                        <td colspan="7" class="text-center py-8 text-slate-400">
+                                            <i data-lucide="calendar-x" class="w-10 h-10 mx-auto mb-2 opacity-50"></i>
+                                            No hay turnos registrados para este filtro.
+                                        </td>
+                                    </tr>
+                                ` : obtenerTurnosFiltrados().map(t => {
+                                    const medico = state.medicos.find(m => m.id === t.medicoId);
+                                    return `
+                                    <tr class="hover:bg-slate-50/80 transition">
+                                        <td class="py-3.5 px-4 font-bold text-slate-800 whitespace-nowrap">
+                                            ${new Date(t.fechaHora).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})} hs
+                                        </td>
+                                        <td class="py-3.5 px-4">
+                                            <p class="font-semibold text-slate-800">${t.paciente}</p>
+                                            <p class="text-xs text-slate-500">DNI: ${t.dni}</p>
+                                        </td>
+                                        <td class="py-3.5 px-4 text-xs text-slate-600">
+                                            <p><span class="font-medium">Edad:</span> ${t.edad} años (${t.sexo})</p>
+                                            <p><span class="font-medium">Barrio:</span> ${t.barrio}</p>
+                                        </td>
+                                        <td class="py-3.5 px-4">
+                                            <p class="font-medium text-slate-800">${medico ? medico.nombre : '-'}</p>
+                                            <p class="text-xs text-teal-600">${medico ? medico.especialidad : ''}</p>
+                                        </td>
+                                        <td class="py-3.5 px-4">
+                                            <span class="bg-slate-100 text-slate-700 text-xs px-2.5 py-1 rounded-md font-medium border border-slate-200">
+                                                ${t.obraSocial || 'Particular'}
+                                            </span>
+                                        </td>
+                                        <td class="py-3.5 px-4">
+                                            ${obtenerBadgeEstado(t.estado)}
+                                        </td>
+                                        <td class="py-3.5 px-4 text-right">
+                                            <select onchange="cambiarEstadoTurno(${t.id}, this.value)" class="text-xs border border-slate-300 rounded-md px-2 py-1 outline-none bg-white focus:ring-2 focus:ring-teal-500">
+                                                <option value="En espera" ${t.estado === 'En espera' ? 'selected' : ''}>En espera</option>
+                                                <option value="En consultorio" ${t.estado === 'En consultorio' ? 'selected' : ''}>En consultorio</option>
+                                                <option value="Atendido" ${t.estado === 'Atendido' ? 'selected' : ''}>Atendido</option>
+                                                <option value="Cancelado" ${t.estado === 'Cancelado' ? 'selected' : ''}>Cancelado</option>
+                                            </select>
+                                        </td>
+                                    </tr>
+                                    `;
+                                }).join('')}
+                            </tbody>
+                        </table>
+                    </div>
+                </section>
+            </main>
+
+            <!-- MODAL: FORMULARIO DE REGISTRO DE TURNO -->
+            ${state.modalTurnoAbierto ? renderModalTurno() : ''}
+            `;
+        }
+
+        // --- MODAL PARA NUEVO TURNO ---
+        function renderModalTurno() {
+            const medico = state.medicoSeleccionado;
+            return `
+            <div class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+                <div class="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto border border-slate-100">
+                    
+                    <div class="bg-teal-700 text-white p-5 flex justify-between items-center sticky top-0 z-10">
+                        <div>
+                            <h3 class="text-lg font-bold">Nuevo Turno Médico</h3>
+                            <p class="text-teal-100 text-xs">Atención con ${medico.nombre} (${medico.especialidad})</p>
+                        </div>
+                        <button onclick="cerrarModalTurno()" class="text-teal-200 hover:text-white p-1 rounded-lg">
+                            <i data-lucide="x" class="w-6 h-6"></i>
+                        </button>
+                    </div>
+
+                    <form id="formNuevoTurno" onsubmit="guardarTurno(event)" class="p-6 space-y-4">
+                        
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <!-- Nombre y Apellido -->
+                            <div class="md:col-span-2">
+                                <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Nombre y Apellido del Paciente *</label>
+                                <input type="text" id="nombrePaciente" required placeholder="Ej. Juan Carlos Pérez"
+                                    class="w-full px-3 py-2 border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-teal-500 text-sm">
+                            </div>
+
+                            <!-- DNI -->
+                            <div>
+                                <label class="block text-xs font-bold text-slate-700 uppercase mb-1">DNI / Documento *</label>
+                                <input type="nu
