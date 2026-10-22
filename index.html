@@ -8,12 +8,21 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- Lucide Icons -->
     <script src="https://unpkg.com/lucide@latest"></script>
+    <!-- Supabase JS Client -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 <body class="bg-slate-100 font-sans text-slate-800 min-h-screen flex flex-col">
 
     <div id="app" class="flex-grow flex flex-col"></div>
 
     <script>
+        // --- CONFIGURACIÓN DE SUPABASE (¡Reemplaza con tus datos!) ---
+        const SUPABASE_URL = 'https://bbokctujmmrpaweslmf.supabase.co';
+const SUPABASE_ANON_KEY = 'sb_publishable_7LjQUUFOBhq1oD9ibF_LzQ_pdG-kX4G';
+        
+        
+        const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
         const BLOQUES_HORARIOS = [
             "08:00", "09:00", "10:00", "11:00",
             "18:00", "19:00", "20:00", "21:00"
@@ -21,31 +30,9 @@
 
         const state = {
             usuarioActual: null,
-            medicos: [
-                { id: 1, nombre: "Dr. Roberto Gómez", especialidad: "Cardiología", usuario: "drgomez", clave: "1234" },
-                { id: 2, nombre: "Dra. María Laura Juárez", especialidad: "Pediatría", usuario: "drajuarez", clave: "1234" },
-                { id: 3, nombre: "Dr. Carlos Santillán", especialidad: "Traumatología", usuario: "drsantillan", clave: "1234" },
-                { id: 4, nombre: "Dra. Ana Florencia Silva", especialidad: "Dermatología", usuario: "drasilva", clave: "1234" }
-            ],
+            medicos: [],
             fechaSeleccionada: new Date().toISOString().split('T')[0],
-            turnos: [
-                {
-                    id: 101,
-                    medicoId: 1,
-                    fecha: new Date().toISOString().split('T')[0],
-                    hora: "09:00",
-                    paciente: "Lucas Peralta",
-                    dni: "38123456",
-                    telefono: "5493855123456",
-                    fechaNacimiento: "1994-05-12",
-                    edad: 32,
-                    barrio: "Centro",
-                    sexo: "Masculino",
-                    obraSocial: "IOSEP",
-                    estado: "En espera",
-                    notaConsulta: ""
-                }
-            ],
+            turnos: [],
             modalTurnoAbierto: false,
             modalNotaAbierto: false,
             modalWhatsappAbierto: false,
@@ -53,6 +40,49 @@
             turnoSeleccionadoNota: null,
             medicoSeleccionado: null
         };
+
+        // --- CARGAR DATOS DESDE SUPABASE ---
+        async function cargarDatosIniciales() {
+            try {
+                // Cargar médicos
+                const { data: medicosData, error: errMed } = await supabaseClient.from('medicos').select('*');
+                if (!errMed) state.medicos = medicosData;
+
+                // Cargar turnos
+                await cargarTurnos();
+            } catch (e) {
+                console.error("Error conectando a Supabase:", e);
+            }
+            render();
+        }
+
+        async function cargarTurnos() {
+            const { data: turnosData, error: errTurnos } = await supabaseClient
+                .from('turnos')
+                .select('*')
+                .eq('fecha', state.fechaSeleccionada);
+            
+            if (!errTurnos) {
+                state.turnos = turnosData.map(t => ({
+                    id: t.id,
+                    medicoId: t.medico_id,
+                    fecha: t.fecha,
+                    hora: t.hora,
+                    paciente: t.paciente,
+                    dni: t.dni,
+                    telefono: t.telefono,
+                    fechaNacimiento: t.fecha_nacimiento,
+                    edad: t.edad,
+                    sexo: t.sexo,
+                    barrio: t.barrio,
+                    obraSocial: t.obra_social,
+                    estado: t.estado,
+                    notaConsulta: t.nota_consulta || '',
+                    recordatorioEnviado: t.recordatorio_enviado
+                }));
+            }
+            render();
+        }
 
         function render() {
             const app = document.getElementById('app');
@@ -78,7 +108,7 @@
                             <i data-lucide="hospital" class="w-7 h-7"></i>
                         </div>
                         <h1 class="text-2xl font-bold text-slate-800">Consultorio Privado</h1>
-                        <p class="text-slate-500 text-sm mt-1">Acceso al Sistema de Turnos</p>
+                        <p class="text-slate-500 text-sm mt-1">Conectado a Supabase en la Nube</p>
                     </div>
 
                     <div class="flex bg-slate-100 p-1 rounded-xl mb-6 text-sm font-semibold">
@@ -95,7 +125,7 @@
                             <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Contraseña</label>
                             <input type="password" id="secClave" value="1234" required class="w-full px-4 py-2.5 rounded-lg border border-slate-300 outline-none focus:ring-2 focus:ring-teal-500 text-sm">
                         </div>
-                        <button type="submit" class="w-full bg-teal-600 hover:bg-teal-700 text-white font-semibold py-3 rounded-lg transition shadow-md shadow-teal-600/30">
+                        <button type="submit" class="w-full bg-teal-600 hover:bg-teal-700 text-white font-semibold py-3 rounded-lg transition shadow-md">
                             Ingresar como Recepción
                         </button>
                     </form>
@@ -159,7 +189,7 @@
                     <h2 class="text-xl font-bold text-slate-800 mb-4">Médicos en Consultorio</h2>
                     <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                         ${state.medicos.map(m => {
-                            const turnosDelDia = state.turnos.filter(t => t.medicoId === m.id && t.fecha === state.fechaSeleccionada && t.estado !== 'Cancelado');
+                            const turnosDelDia = state.turnos.filter(t => t.medicoId === m.id && t.estado !== 'Cancelado');
                             const libres = BLOQUES_HORARIOS.length - turnosDelDia.length;
                             return `
                             <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm flex flex-col justify-between">
@@ -191,13 +221,13 @@
                                     <th class="p-3">DNI / Datos</th>
                                     <th class="p-3">Médico</th>
                                     <th class="p-3">Estado</th>
-                                    <th class="p-3 text-right">Notificaciones</th>
+                                    <th class="p-3 text-right">Acción</th>
                                 </tr>
                             </thead>
                             <tbody>
-                                ${obtenerTurnosFechaActual().length === 0 ? `
+                                ${state.turnos.length === 0 ? `
                                     <tr><td colspan="6" class="p-6 text-center text-slate-400">No hay turnos agendados para esta fecha.</td></tr>
-                                ` : obtenerTurnosFechaActual().map(t => {
+                                ` : state.turnos.map(t => {
                                     const med = state.medicos.find(m => m.id === t.medicoId);
                                     return `
                                     <tr class="border-b hover:bg-slate-50 transition">
@@ -209,12 +239,9 @@
                                         <td class="p-3 text-xs">DNI: ${t.dni}<br>${t.edad} años (${t.barrio})</td>
                                         <td class="p-3 font-medium">${med ? med.nombre : '-'}<br><span class="text-xs text-slate-400">${med ? med.especialidad : ''}</span></td>
                                         <td class="p-3">${badgeEstado(t.estado)}</td>
-                                        <td class="p-3 text-right space-x-1">
-                                            <button onclick="enviarComprobanteWhatsapp('${t.id}')" title="Enviar Comprobante" class="bg-emerald-600 hover:bg-emerald-700 text-white text-xs px-2.5 py-1.5 rounded-md font-semibold transition inline-flex items-center gap-1">
+                                        <td class="p-3 text-right">
+                                            <button onclick="enviarComprobanteWhatsapp('${t.id}')" class="bg-emerald-600 hover:bg-emerald-700 text-white text-xs px-3 py-1.5 rounded-md font-semibold transition inline-flex items-center gap-1">
                                                 📱 Comprobante
-                                            </button>
-                                            <button onclick="enviarRecordatorioWhatsapp('${t.id}')" title="Enviar Recordatorio 2hs antes" class="bg-amber-500 hover:bg-amber-600 text-white text-xs px-2.5 py-1.5 rounded-md font-semibold transition inline-flex items-center gap-1">
-                                                ⏰ Recordatorio
                                             </button>
                                         </td>
                                     </tr>
@@ -233,7 +260,7 @@
 
         function renderDashboardMedico() {
             const medActual = state.usuarioActual;
-            const turnosFechaMed = state.turnos.filter(t => t.medicoId === medActual.id && t.fecha === state.fechaSeleccionada && t.estado !== 'Cancelado');
+            const turnosFechaMed = state.turnos.filter(t => t.medicoId === medActual.id && t.estado !== 'Cancelado');
 
             return `
             <header class="bg-slate-900 text-white border-b border-slate-800 sticky top-0 z-30 shadow-md p-4 flex justify-between items-center">
@@ -262,7 +289,7 @@
 
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div class="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-sm">
-                        <div class="bg-teal-700 text-white p-3 font-bold text-sm flex items-center justify-between">
+                        <div class="bg-teal-700 text-white p-3 font-bold text-sm">
                             <span><i data-lucide="sun" class="w-4 h-4 inline mr-1"></i> Turno Mañana (08:00 a 12:00 hs)</span>
                         </div>
                         <div class="divide-y divide-slate-100">
@@ -271,7 +298,7 @@
                     </div>
 
                     <div class="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-sm">
-                        <div class="bg-slate-800 text-white p-3 font-bold text-sm flex items-center justify-between">
+                        <div class="bg-slate-800 text-white p-3 font-bold text-sm">
                             <span><i data-lucide="moon" class="w-4 h-4 inline mr-1"></i> Turno Tarde (18:00 a 22:00 hs)</span>
                         </div>
                         <div class="divide-y divide-slate-100">
@@ -289,7 +316,7 @@
             const turno = turnosFechaMed.find(t => t.hora === hora);
             if (turno) {
                 return `
-                <div class="p-4 bg-teal-50/50 hover:bg-teal-50 transition flex justify-between items-start gap-3">
+                <div class="p-4 bg-teal-50/50 transition flex justify-between items-start gap-3">
                     <div>
                         <span class="inline-block font-black text-slate-800 text-sm bg-teal-100 text-teal-800 px-2 py-0.5 rounded">${hora} hs</span>
                         <h4 class="font-bold text-slate-900 mt-1">${turno.paciente} (${turno.edad} yrs)</h4>
@@ -299,8 +326,8 @@
                     </div>
                     <div class="text-right flex flex-col items-end gap-2">
                         ${badgeEstado(turno.estado)}
-                        <button onclick="abrirModalNota(${turno.id})" class="text-xs bg-teal-600 hover:bg-teal-700 text-white font-semibold px-2.5 py-1 rounded transition flex items-center gap-1 mt-1">
-                            <i data-lucide="edit-3" class="w-3 h-3"></i> Ficha
+                        <button onclick="abrirModalNota(${turno.id})" class="text-xs bg-teal-600 text-white font-semibold px-2.5 py-1 rounded transition mt-1">
+                            Ficha
                         </button>
                     </div>
                 </div>
@@ -309,7 +336,7 @@
                 return `
                 <div class="p-4 bg-white flex justify-between items-center text-slate-400 text-sm">
                     <span class="font-semibold text-slate-600 bg-slate-100 px-2 py-0.5 rounded">${hora} hs</span>
-                    <span class="text-xs italic font-medium text-slate-300">Disponible / Sin asignación</span>
+                    <span class="text-xs italic font-medium text-slate-300">Disponible</span>
                 </div>
                 `;
             }
@@ -317,61 +344,57 @@
 
         function renderModalNuevoTurno() {
             const med = state.medicoSeleccionado;
-            const horasOcupadas = state.turnos
-                .filter(t => t.medicoId === med.id && t.fecha === state.fechaSeleccionada && t.estado !== 'Cancelado')
-                .map(t => t.hora);
+            const horasOcupadas = state.turnos.filter(t => t.medicoId === med.id && t.estado !== 'Cancelado').map(t => t.hora);
 
             return `
             <div class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
                 <div class="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl max-h-[90vh] overflow-y-auto">
-                    <h3 class="text-lg font-bold text-slate-800 mb-1">Agendar Turno Médicos</h3>
+                    <h3 class="text-lg font-bold text-slate-800 mb-1">Agendar Turno</h3>
                     <p class="text-teal-600 text-xs font-semibold mb-4">Especialista: ${med.nombre} (${med.especialidad})</p>
                     
                     <form onsubmit="guardarTurno(event)" class="space-y-3">
                         <div>
                             <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Fecha de la Cita *</label>
-                            <input type="date" id="fechaTurno" value="${state.fechaSeleccionada}" required class="w-full p-2.5 border border-slate-300 rounded-lg text-sm outline-none focus:ring-2 focus:ring-teal-500">
+                            <input type="date" id="fechaTurno" value="${state.fechaSeleccionada}" required class="w-full p-2.5 border rounded-lg text-sm">
                         </div>
 
                         <div>
                             <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Horario Disponible *</label>
-                            <select id="horaTurno" required class="w-full p-2.5 border border-slate-300 rounded-lg text-sm outline-none focus:ring-2 focus:ring-teal-500 bg-white font-semibold">
+                            <select id="horaTurno" required class="w-full p-2.5 border rounded-lg text-sm bg-white font-semibold">
                                 <option value="">Seleccione un horario...</option>
                                 ${BLOQUES_HORARIOS.map(h => {
                                     const ocupado = horasOcupadas.includes(h);
-                                    return `<option value="${h}" ${ocupado ? 'disabled class="bg-slate-100 text-slate-400"' : 'class="text-slate-800 font-bold"'}>${h} hs ${ocupado ? '(OCUPADO)' : '(Disponible)'}</option>`;
+                                    return `<option value="${h}" ${ocupado ? 'disabled class="bg-slate-100 text-slate-400"' : ''}>${h} hs ${ocupado ? '(OCUPADO)' : '(Disponible)'}</option>`;
                                 }).join('')}
                             </select>
                         </div>
 
-                        <hr class="my-2 border-slate-200">
-
-                        <input type="text" id="paciente" placeholder="Nombre y Apellido del Paciente *" required class="w-full p-2.5 border border-slate-300 rounded-lg text-sm outline-none focus:ring-2 focus:ring-teal-500">
+                        <input type="text" id="paciente" placeholder="Nombre y Apellido del Paciente *" required class="w-full p-2.5 border rounded-lg text-sm">
                         
                         <div class="grid grid-cols-2 gap-2">
-                            <input type="number" id="dni" placeholder="DNI *" required class="w-full p-2.5 border border-slate-300 rounded-lg text-sm outline-none focus:ring-2 focus:ring-teal-500">
-                            <input type="tel" id="telefono" placeholder="Teléfono WhatsApp (ej. 3855123456) *" required class="w-full p-2.5 border border-slate-300 rounded-lg text-sm outline-none focus:ring-2 focus:ring-teal-500">
+                            <input type="number" id="dni" placeholder="DNI *" required class="w-full p-2.5 border rounded-lg text-sm">
+                            <input type="tel" id="telefono" placeholder="Teléfono WhatsApp *" required class="w-full p-2.5 border rounded-lg text-sm">
                         </div>
 
                         <div class="grid grid-cols-2 gap-2">
-                            <input type="date" id="fechaNac" required onchange="calcularEdad(this.value)" class="w-full p-2.5 border border-slate-300 rounded-lg text-sm outline-none focus:ring-2 focus:ring-teal-500">
-                            <input type="number" id="edad" placeholder="Edad" readonly class="w-full p-2.5 border border-slate-200 bg-slate-50 text-slate-600 rounded-lg text-sm font-semibold">
+                            <input type="date" id="fechaNac" required onchange="calcularEdad(this.value)" class="w-full p-2.5 border rounded-lg text-sm">
+                            <input type="number" id="edad" placeholder="Edad" readonly class="w-full p-2.5 border bg-slate-50 rounded-lg text-sm">
                         </div>
 
                         <div class="grid grid-cols-2 gap-2">
-                            <select id="sexo" required class="w-full p-2.5 border border-slate-300 rounded-lg text-sm outline-none focus:ring-2 focus:ring-teal-500 bg-white">
+                            <select id="sexo" required class="w-full p-2.5 border rounded-lg text-sm bg-white">
                                 <option value="">Sexo...</option>
                                 <option value="Masculino">Masculino</option>
                                 <option value="Femenino">Femenino</option>
                             </select>
-                            <input type="text" id="barrio" placeholder="Barrio *" required class="w-full p-2.5 border border-slate-300 rounded-lg text-sm outline-none focus:ring-2 focus:ring-teal-500">
+                            <input type="text" id="barrio" placeholder="Barrio *" required class="w-full p-2.5 border rounded-lg text-sm">
                         </div>
 
-                        <input type="text" id="obraSocial" placeholder="Obra Social / Prepaga" class="w-full p-2.5 border border-slate-300 rounded-lg text-sm outline-none focus:ring-2 focus:ring-teal-500">
+                        <input type="text" id="obraSocial" placeholder="Obra Social / Prepaga" class="w-full p-2.5 border rounded-lg text-sm">
 
                         <div class="flex justify-end gap-2 pt-3 border-t">
-                            <button type="button" onclick="cerrarModalTurno()" class="px-4 py-2 text-slate-500 text-sm hover:bg-slate-100 rounded-lg">Cancelar</button>
-                            <button type="submit" class="px-5 py-2 bg-teal-600 hover:bg-teal-700 text-white rounded-lg font-semibold text-sm shadow-md transition">Confirmar y Guardar</button>
+                            <button type="button" onclick="cerrarModalTurno()" class="px-4 py-2 text-slate-500 text-sm">Cancelar</button>
+                            <button type="submit" class="px-5 py-2 bg-teal-600 text-white rounded-lg font-semibold text-sm">Guardar</button>
                         </div>
                     </form>
                 </div>
@@ -379,25 +402,16 @@
             `;
         }
 
-        // --- VENTANA EMERGENTE DE CONFIRMACIÓN WHATSAPP ---
         function renderModalWhatsappExito() {
             const t = state.turnoRecienteWhatsapp;
             return `
             <div class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
                 <div class="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl text-center">
-                    <div class="w-16 h-16 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mx-auto mb-4">
-                        <i data-lucide="check-circle" class="w-10 h-10"></i>
-                    </div>
-                    <h3 class="text-xl font-bold text-slate-800">¡Turno Agendado con Éxito!</h3>
-                    <p class="text-slate-500 text-sm mt-1 mb-6">¿Deseas enviar el comprobante de confirmación por WhatsApp a <strong>${t.paciente}</strong>?</p>
-                    
+                    <h3 class="text-xl font-bold text-slate-800">¡Turno Guardado en Supabase!</h3>
+                    <p class="text-slate-500 text-sm mt-1 mb-6">¿Deseas enviar el comprobante por WhatsApp a <strong>${t.paciente}</strong>?</p>
                     <div class="space-y-3">
-                        <button onclick="enviarComprobanteWhatsapp('${t.id}')" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3 rounded-xl transition flex items-center justify-center gap-2 shadow-lg shadow-emerald-600/30">
-                            📱 Enviar Comprobante por WhatsApp
-                        </button>
-                        <button onclick="cerrarModalWhatsapp()" class="w-full bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold py-2.5 rounded-xl transition text-sm">
-                            Omitir por ahora
-                        </button>
+                        <button onclick="enviarComprobanteWhatsapp('${t.id}')" class="w-full bg-emerald-600 text-white font-bold py-3 rounded-xl shadow-lg">📱 Enviar Comprobante</button>
+                        <button onclick="cerrarModalWhatsapp()" class="w-full bg-slate-100 text-slate-700 font-semibold py-2.5 rounded-xl text-sm">Cerrar</button>
                     </div>
                 </div>
             </div>
@@ -409,29 +423,18 @@
             return `
             <div class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
                 <div class="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl">
-                    <h3 class="text-lg font-bold text-slate-800">Ficha y Diagnóstico de Consulta</h3>
-                    <p class="text-xs text-slate-500 mb-4">Paciente: <strong class="text-slate-800">${t.paciente}</strong> (${t.hora} hs - ${t.fecha})</p>
-                    
-                    <form onsubmit="guardarNotaConsulta(event)" class="space-y-4">
-                        <div>
-                            <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Estado de Atención</label>
-                            <select id="estadoConsulta" class="w-full p-2.5 border border-slate-300 rounded-lg text-sm outline-none bg-white">
-                                <option value="En espera" ${t.estado === 'En espera' ? 'selected' : ''}>En espera</option>
-                                <option value="En consultorio" ${t.estado === 'En consultorio' ? 'selected' : ''}>En consultorio</option>
-                                <option value="Atendido" ${t.estado === 'Atendido' ? 'selected' : ''}>Atendido</option>
-                                <option value="Cancelado" ${t.estado === 'Cancelado' ? 'selected' : ''}>Cancelado</option>
-                            </select>
-                        </div>
-
-                        <div>
-                            <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Notas de la Consulta / Diagnóstico</label>
-                            <textarea id="textoNota" rows="4" placeholder="Escriba aquí los síntomas, indicaciones o diagnóstico del paciente..." 
-                                class="w-full p-3 border border-slate-300 rounded-lg text-sm outline-none focus:ring-2 focus:ring-teal-500">${t.notaConsulta || ''}</textarea>
-                        </div>
-
-                        <div class="flex justify-end gap-2 pt-2 border-t">
+                    <h3 class="text-lg font-bold text-slate-800">Ficha y Diagnóstico</h3>
+                    <form onsubmit="guardarNotaConsulta(event)" class="space-y-4 mt-3">
+                        <select id="estadoConsulta" class="w-full p-2.5 border rounded-lg text-sm bg-white">
+                            <option value="En espera" ${t.estado === 'En espera' ? 'selected' : ''}>En espera</option>
+                            <option value="En consultorio" ${t.estado === 'En consultorio' ? 'selected' : ''}>En consultorio</option>
+                            <option value="Atendido" ${t.estado === 'Atendido' ? 'selected' : ''}>Atendido</option>
+                            <option value="Cancelado" ${t.estado === 'Cancelado' ? 'selected' : ''}>Cancelado</option>
+                        </select>
+                        <textarea id="textoNota" rows="4" class="w-full p-3 border rounded-lg text-sm" placeholder="Diagnóstico...">${t.notaConsulta || ''}</textarea>
+                        <div class="flex justify-end gap-2 pt-2">
                             <button type="button" onclick="cerrarModalNota()" class="px-4 py-2 text-slate-500 text-sm">Cancelar</button>
-                            <button type="submit" class="px-5 py-2 bg-teal-600 hover:bg-teal-700 text-white rounded-lg font-semibold text-sm shadow-md transition">Guardar en Ficha</button>
+                            <button type="submit" class="px-5 py-2 bg-teal-600 text-white rounded-lg text-sm font-semibold">Guardar Cambios</button>
                         </div>
                     </form>
                 </div>
@@ -439,47 +442,63 @@
             `;
         }
 
-        // --- FUNCIONES WHATSAPP ---
-        function enviarComprobanteWhatsapp(turnoId) {
-            const t = state.turnos.find(x => x.id.toString() === turnoId.toString());
-            if (!t) return;
+        // --- LÓGICA CON SUPABASE ---
+        async function guardarTurno(e) {
+            e.preventDefault();
+            const nuevoTurnoDB = {
+                medico_id: state.medicoSeleccionado.id,
+                fecha: document.getElementById('fechaTurno').value,
+                hora: document.getElementById('horaTurno').value,
+                paciente: document.getElementById('paciente').value,
+                dni: document.getElementById('dni').value,
+                telefono: document.getElementById('telefono').value,
+                fecha_nacimiento: document.getElementById('fechaNac').value,
+                edad: parseInt(document.getElementById('edad').value),
+                sexo: document.getElementById('sexo').value,
+                barrio: document.getElementById('barrio').value,
+                obra_social: document.getElementById('obraSocial').value || 'Particular',
+                estado: 'En espera',
+                nota_consulta: ''
+            };
 
-            const med = state.medicos.find(m => m.id === t.medicoId);
-            let numTel = t.telefono.replace(/\D/g, ''); // Limpiar caracteres
-            if (!numTel.startsWith('549')) numTel = '549' + numTel; // Formato Argentina (+54 9)
+            const { data, error } = await supabaseClient.from('turnos').insert([nuevoTurnoDB]).select();
+            
+            if (error) {
+                alert('Error al guardar en Supabase: ' + error.message);
+                return;
+            }
 
-            const texto = `*Centro Médico San Martín* 🏥%0A%0A` +
-                          `¡Hola *${t.paciente}*! Confirmamos tu turno médico:%0A%0A` +
-                          `🩺 *Especialista:* ${med ? med.nombre : ''} (${med ? med.especialidad : ''})%0A` +
-                          `📅 *Fecha:* ${t.fecha}%0A` +
-                          `⏰ *Horario:* ${t.hora} hs%0A` +
-                          `💳 *Obra Social:* ${t.obraSocial}%0A%0A` +
-                          `📍 *Ubicación:* Av. Belgrano Sur 1234, Santiago del Estero.%0A` +
-                          `_Por favor presentarse 10 minutos antes._`;
+            cerrarModalTurno();
+            await cargarTurnos();
 
-            window.open(`https://wa.me/${numTel}?text=${texto}`, '_blank');
-            if (state.modalWhatsappAbierto) cerrarModalWhatsapp();
+            if (data && data.length > 0) {
+                state.turnoRecienteWhatsapp = { ...nuevoTurnoDB, id: data[0].id };
+                state.modalWhatsappAbierto = true;
+                render();
+            }
         }
 
-        function enviarRecordatorioWhatsapp(turnoId) {
-            const t = state.turnos.find(x => x.id.toString() === turnoId.toString());
-            if (!t) return;
+        async function guardarNotaConsulta(e) {
+            e.preventDefault();
+            if (!state.turnoSeleccionadoNota) return;
 
-            const med = state.medicos.find(m => m.id === t.medicoId);
-            let numTel = t.telefono.replace(/\D/g, '');
-            if (!numTel.startsWith('549')) numTel = '549' + numTel;
+            const nuevoEstado = document.getElementById('estadoConsulta').value;
+            const nuevaNota = document.getElementById('textoNota').value;
 
-            const texto = `⏰ *RECORDATORIO DE TURNO MÉDICO*%0A%0A` +
-                          `Hola *${t.paciente}*, te recordamos que hoy tenés tu consulta médica:%0A%0A` +
-                          `🩺 *Médico:* ${med ? med.nombre : ''}%0A` +
-                          `⏰ *Horario:* ${t.hora} hs%0A` +
-                          `📍 *Centro Médico San Martín*%0A%0A` +
-                          `¡Te esperamos! Por favor confirmar asistencia.`;
+            const { error } = await supabaseClient
+                .from('turnos')
+                .update({ estado: nuevoEstado, nota_consulta: nuevaNota })
+                .eq('id', state.turnoSeleccionadoNota.id);
 
-            window.open(`https://wa.me/${numTel}?text=${texto}`, '_blank');
+            if (error) {
+                alert('Error al actualizar: ' + error.message);
+                return;
+            }
+
+            cerrarModalNota();
+            await cargarTurnos();
         }
 
-        // --- AUXILIARES Y LÓGICA GENERAL ---
         function cambiarTabLogin(rol) {
             const btnSec = document.getElementById('btnTabSecretaria');
             const btnMed = document.getElementById('btnTabMedico');
@@ -525,13 +544,9 @@
             render();
         }
 
-        function cambiarFechaGlobal(nuevaFecha) {
+        async function cambiarFechaGlobal(nuevaFecha) {
             state.fechaSeleccionada = nuevaFecha;
-            render();
-        }
-
-        function obtenerTurnosFechaActual() {
-            return state.turnos.filter(t => t.fecha === state.fechaSeleccionada);
+            await cargarTurnos();
         }
 
         function abrirModalTurno(medicoId) {
@@ -561,36 +576,8 @@
             document.getElementById('edad').value = edad >= 0 ? edad : 0;
         }
 
-        function guardarTurno(e) {
-            e.preventDefault();
-            const nuevoTurno = {
-                id: Date.now(),
-                medicoId: state.medicoSeleccionado.id,
-                fecha: document.getElementById('fechaTurno').value,
-                hora: document.getElementById('horaTurno').value,
-                paciente: document.getElementById('paciente').value,
-                dni: document.getElementById('dni').value,
-                telefono: document.getElementById('telefono').value,
-                fechaNacimiento: document.getElementById('fechaNac').value,
-                edad: document.getElementById('edad').value,
-                sexo: document.getElementById('sexo').value,
-                barrio: document.getElementById('barrio').value,
-                obraSocial: document.getElementById('obraSocial').value || 'Particular',
-                estado: 'En espera',
-                notaConsulta: ''
-            };
-
-            state.turnos.push(nuevoTurno);
-            cerrarModalTurno();
-
-            // Abrir popup de confirmación por WhatsApp
-            state.turnoRecienteWhatsapp = nuevoTurno;
-            state.modalWhatsappAbierto = true;
-            render();
-        }
-
         function abrirModalNota(turnoId) {
-            state.turnoSeleccionadoNota = state.turnos.find(t => t.id === turnoId);
+            state.turnoSeleccionadoNota = state.turnos.find(t => t.id.toString() === turnoId.toString());
             state.modalNotaAbierto = true;
             render();
         }
@@ -601,13 +588,25 @@
             render();
         }
 
-        function guardarNotaConsulta(e) {
-            e.preventDefault();
-            if (state.turnoSeleccionadoNota) {
-                state.turnoSeleccionadoNota.estado = document.getElementById('estadoConsulta').value;
-                state.turnoSeleccionadoNota.notaConsulta = document.getElementById('textoNota').value;
-            }
-            cerrarModalNota();
+        function enviarComprobanteWhatsapp(turnoId) {
+            const t = state.turnos.find(x => x.id.toString() === turnoId.toString());
+            if (!t) return;
+
+            const med = state.medicos.find(m => m.id === t.medicoId);
+            let numTel = t.telefono.replace(/\D/g, '');
+            if (!numTel.startsWith('549')) numTel = '549' + numTel;
+
+            const texto = `*Centro Médico San Martín* 🏥%0A%0A` +
+                          `¡Hola *${t.paciente}*! Confirmamos tu turno médico:%0A%0A` +
+                          `🩺 *Especialista:* ${med ? med.nombre : ''} (${med ? med.especialidad : ''})%0A` +
+                          `📅 *Fecha:* ${t.fecha}%0A` +
+                          `⏰ *Horario:* ${t.hora} hs%0A` +
+                          `💳 *Obra Social:* ${t.obraSocial}%0A%0A` +
+                          `📍 *Ubicación:* Santiago del Estero.%0A` +
+                          `_Por favor presentarse 10 minutos antes._`;
+
+            window.open(`https://wa.me/${numTel}?text=${texto}`, '_blank');
+            if (state.modalWhatsappAbierto) cerrarModalWhatsapp();
         }
 
         function badgeEstado(est) {
@@ -620,7 +619,8 @@
             }
         }
 
-        window.onload = render;
+        // Inicializar cargando datos desde Supabase al abrir
+        window.onload = cargarDatosIniciales;
     </script>
 </body>
 </html>
