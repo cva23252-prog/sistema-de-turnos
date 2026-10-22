@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Sistema de Gestión de Turnos Médicos</title>
+    <title>Sistema de Gestión Médica SaaS</title>
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- Lucide Icons -->
@@ -16,10 +16,9 @@
     <div id="app" class="flex-grow flex flex-col"></div>
 
     <script>
-        // --- CONFIGURACIÓN DE SUPABASE (¡Reemplaza con tus datos!) ---
+        // --- CONFIGURACIÓN DE SUPABASE ---
         const SUPABASE_URL = 'https://bbokctujmmrpaweslmf.supabase.co';
-const SUPABASE_ANON_KEY = 'sb_publishable_7LjQUUFOBhq1oD9ibF_LzQ_pdG-kX4G';
-        
+        const SUPABASE_ANON_KEY = 'sb_publishable_7LjQUUFOBhq1oD9ibF_LzQ_pdG-kX4G';
         
         const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
@@ -29,7 +28,8 @@ const SUPABASE_ANON_KEY = 'sb_publishable_7LjQUUFOBhq1oD9ibF_LzQ_pdG-kX4G';
         ];
 
         const state = {
-            usuarioActual: null,
+            usuarioActual: null, // { rol: 'admin'|'secretaria'|'medico', ... }
+            tabLogin: 'secretaria',
             medicos: [],
             fechaSeleccionada: new Date().toISOString().split('T')[0],
             turnos: [],
@@ -41,14 +41,12 @@ const SUPABASE_ANON_KEY = 'sb_publishable_7LjQUUFOBhq1oD9ibF_LzQ_pdG-kX4G';
             medicoSeleccionado: null
         };
 
-        // --- CARGAR DATOS DESDE SUPABASE ---
+        // --- CARGA DE DATOS ---
         async function cargarDatosIniciales() {
             try {
-                // Cargar médicos
                 const { data: medicosData, error: errMed } = await supabaseClient.from('medicos').select('*');
-                if (!errMed) state.medicos = medicosData;
+                if (!errMed && medicosData) state.medicos = medicosData;
 
-                // Cargar turnos
                 await cargarTurnos();
             } catch (e) {
                 console.error("Error conectando a Supabase:", e);
@@ -62,7 +60,7 @@ const SUPABASE_ANON_KEY = 'sb_publishable_7LjQUUFOBhq1oD9ibF_LzQ_pdG-kX4G';
                 .select('*')
                 .eq('fecha', state.fechaSeleccionada);
             
-            if (!errTurnos) {
+            if (!errTurnos && turnosData) {
                 state.turnos = turnosData.map(t => ({
                     id: t.id,
                     medicoId: t.medico_id,
@@ -84,10 +82,13 @@ const SUPABASE_ANON_KEY = 'sb_publishable_7LjQUUFOBhq1oD9ibF_LzQ_pdG-kX4G';
             render();
         }
 
+        // --- RENDERIZADO PRINCIPAL ---
         function render() {
             const app = document.getElementById('app');
             if (!state.usuarioActual) {
                 app.innerHTML = renderLogin();
+            } else if (state.usuarioActual.rol === 'admin') {
+                app.innerHTML = renderDashboardAdmin();
             } else if (state.usuarioActual.rol === 'secretaria') {
                 app.innerHTML = renderDashboardSecretaria();
             } else if (state.usuarioActual.rol === 'medico') {
@@ -99,6 +100,7 @@ const SUPABASE_ANON_KEY = 'sb_publishable_7LjQUUFOBhq1oD9ibF_LzQ_pdG-kX4G';
             }
         }
 
+        // --- LOGIN MULTI-ROL (Admin, Recepción, Médicos) ---
         function renderLogin() {
             return `
             <div class="min-h-screen bg-slate-900 flex items-center justify-center p-4">
@@ -107,57 +109,150 @@ const SUPABASE_ANON_KEY = 'sb_publishable_7LjQUUFOBhq1oD9ibF_LzQ_pdG-kX4G';
                         <div class="bg-teal-100 w-14 h-14 rounded-full flex items-center justify-center mx-auto mb-2 text-teal-700">
                             <i data-lucide="hospital" class="w-7 h-7"></i>
                         </div>
-                        <h1 class="text-2xl font-bold text-slate-800">Consultorio Privado</h1>
-                        <p class="text-slate-500 text-sm mt-1">Conectado a Supabase en la Nube</p>
+                        <h1 class="text-2xl font-bold text-slate-800">Centro Médico</h1>
+                        <p class="text-slate-500 text-sm mt-1">Acceso al Sistema Integrado</p>
                     </div>
 
-                    <div class="flex bg-slate-100 p-1 rounded-xl mb-6 text-sm font-semibold">
-                        <button id="btnTabSecretaria" onclick="cambiarTabLogin('secretaria')" class="flex-1 py-2 rounded-lg bg-white text-teal-700 shadow-sm transition">Recepción</button>
-                        <button id="btnTabMedico" onclick="cambiarTabLogin('medico')" class="flex-1 py-2 rounded-lg text-slate-500 transition">Médico</button>
+                    <div class="flex bg-slate-100 p-1 rounded-xl mb-6 text-xs font-semibold">
+                        <button onclick="cambiarTabLogin('secretaria')" class="flex-1 py-2 rounded-lg ${state.tabLogin === 'secretaria' ? 'bg-white text-teal-700 shadow-sm' : 'text-slate-500'} transition">Recepción</button>
+                        <button onclick="cambiarTabLogin('medico')" class="flex-1 py-2 rounded-lg ${state.tabLogin === 'medico' ? 'bg-white text-teal-700 shadow-sm' : 'text-slate-500'} transition">Médicos</button>
+                        <button onclick="cambiarTabLogin('admin')" class="flex-1 py-2 rounded-lg ${state.tabLogin === 'admin' ? 'bg-white text-teal-700 shadow-sm' : 'text-slate-500'} transition">Admin</button>
                     </div>
 
-                    <form id="formLoginSecretaria" onsubmit="loginSecretaria(event)" class="space-y-4">
-                        <div>
-                            <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Usuario</label>
-                            <input type="text" id="secUsuario" value="secretaria" required class="w-full px-4 py-2.5 rounded-lg border border-slate-300 outline-none focus:ring-2 focus:ring-teal-500 text-sm">
-                        </div>
-                        <div>
-                            <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Contraseña</label>
-                            <input type="password" id="secClave" value="1234" required class="w-full px-4 py-2.5 rounded-lg border border-slate-300 outline-none focus:ring-2 focus:ring-teal-500 text-sm">
-                        </div>
-                        <button type="submit" class="w-full bg-teal-600 hover:bg-teal-700 text-white font-semibold py-3 rounded-lg transition shadow-md">
-                            Ingresar como Recepción
-                        </button>
-                    </form>
+                    ${state.tabLogin === 'secretaria' ? `
+                        <form onsubmit="loginSecretaria(event)" class="space-y-4">
+                            <div>
+                                <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Usuario</label>
+                                <input type="text" id="secUsuario" value="secretaria" required class="w-full px-4 py-2.5 rounded-lg border border-slate-300 outline-none focus:ring-2 focus:ring-teal-500 text-sm">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Contraseña</label>
+                                <input type="password" id="secClave" value="1234" required class="w-full px-4 py-2.5 rounded-lg border border-slate-300 outline-none focus:ring-2 focus:ring-teal-500 text-sm">
+                            </div>
+                            <button type="submit" class="w-full bg-teal-600 hover:bg-teal-700 text-white font-semibold py-3 rounded-lg transition shadow-md">
+                                Ingresar a Recepción
+                            </button>
+                        </form>
+                    ` : ''}
 
-                    <form id="formLoginMedico" onsubmit="loginMedico(event)" class="space-y-4 hidden">
-                        <div>
-                            <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Especialidad Médica *</label>
-                            <select id="medEspecialidad" required class="w-full px-4 py-2.5 rounded-lg border border-slate-300 outline-none focus:ring-2 focus:ring-teal-500 text-sm bg-white">
-                                <option value="">Seleccione especialidad...</option>
-                                <option value="Pediatría">Pediatría</option>
-                                <option value="Traumatología">Traumatología</option>
-                                <option value="Cardiología">Cardiología</option>
-                                <option value="Dermatología">Dermatología</option>
-                            </select>
-                        </div>
-                        <div>
-                            <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Usuario Médico *</label>
-                            <input type="text" id="medUsuario" placeholder="Ej. drgomez" required class="w-full px-4 py-2.5 rounded-lg border border-slate-300 outline-none focus:ring-2 focus:ring-teal-500 text-sm">
-                        </div>
-                        <div>
-                            <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Contraseña *</label>
-                            <input type="password" id="medClave" value="1234" required class="w-full px-4 py-2.5 rounded-lg border border-slate-300 outline-none focus:ring-2 focus:ring-teal-500 text-sm">
-                        </div>
-                        <button type="submit" class="w-full bg-slate-900 hover:bg-teal-700 text-white font-semibold py-3 rounded-lg transition shadow-md">
-                            Ingresar al Portal Médico
-                        </button>
-                    </form>
+                    ${state.tabLogin === 'medico' ? `
+                        <form onsubmit="loginMedico(event)" class="space-y-4">
+                            <div>
+                                <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Usuario Médico *</label>
+                                <input type="text" id="medUsuario" placeholder="Ej. drgomez" required class="w-full px-4 py-2.5 rounded-lg border border-slate-300 outline-none focus:ring-2 focus:ring-teal-500 text-sm">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Contraseña *</label>
+                                <input type="password" id="medClave" value="1234" required class="w-full px-4 py-2.5 rounded-lg border border-slate-300 outline-none focus:ring-2 focus:ring-teal-500 text-sm">
+                            </div>
+                            <button type="submit" class="w-full bg-slate-900 hover:bg-teal-700 text-white font-semibold py-3 rounded-lg transition shadow-md">
+                                Ingresar al Portal Médico
+                            </button>
+                        </form>
+                    ` : ''}
+
+                    ${state.tabLogin === 'admin' ? `
+                        <form onsubmit="loginAdmin(event)" class="space-y-4">
+                            <div>
+                                <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Usuario Administrador</label>
+                                <input type="text" id="adminUsuario" value="admin" required class="w-full px-4 py-2.5 rounded-lg border border-slate-300 outline-none focus:ring-2 focus:ring-amber-500 text-sm">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Contraseña Master</label>
+                                <input type="password" id="adminClave" value="admin123" required class="w-full px-4 py-2.5 rounded-lg border border-slate-300 outline-none focus:ring-2 focus:ring-amber-500 text-sm">
+                            </div>
+                            <button type="submit" class="w-full bg-amber-600 hover:bg-amber-700 text-white font-semibold py-3 rounded-lg transition shadow-md">
+                                Ingresar como Administrador
+                            </button>
+                        </form>
+                    ` : ''}
                 </div>
             </div>
             `;
         }
 
+        // --- DASHBOARD ADMIN ---
+        function renderDashboardAdmin() {
+            return `
+            <header class="bg-slate-900 text-white border-b border-slate-800 sticky top-0 z-30 shadow-md p-4 flex justify-between items-center">
+                <div class="flex items-center gap-3">
+                    <div class="bg-amber-500 text-slate-900 p-2 rounded-lg font-bold"><i data-lucide="shield-check" class="w-5 h-5"></i></div>
+                    <div>
+                        <h1 class="font-bold text-white text-base">Panel de Administración General</h1>
+                        <p class="text-xs text-amber-400 font-medium">Gestión de Personal Médico y Usuarios</p>
+                    </div>
+                </div>
+                <button onclick="cerrarSesion()" class="text-sm text-slate-300 hover:text-red-400 transition flex items-center gap-1">
+                    <i data-lucide="log-out" class="w-4 h-4"></i> Salir
+                </button>
+            </header>
+
+            <main class="max-w-5xl mx-auto p-4 sm:p-6 space-y-8 w-full">
+                <!-- Formulario de Alta de Médico -->
+                <div class="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
+                    <h2 class="text-lg font-bold text-slate-800 mb-4 flex items-center gap-2">
+                        <i data-lucide="user-plus" class="w-5 h-5 text-teal-600"></i> Registrar Nuevo Médico / Profesional
+                    </h2>
+                    <form onsubmit="crearNuevoMedico(event)" class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Nombre Completo *</label>
+                            <input type="text" id="nuevoNombreMed" placeholder="Ej. Dr. Mario Gómez" required class="w-full p-2.5 border rounded-lg text-sm">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Especialidad *</label>
+                            <input type="text" id="nuevaEspecialidadMed" placeholder="Ej. Cardiología" required class="w-full p-2.5 border rounded-lg text-sm">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Usuario de Acceso *</label>
+                            <input type="text" id="nuevoUsuarioMed" placeholder="Ej. drmario" required class="w-full p-2.5 border rounded-lg text-sm">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Contraseña de Acceso *</label>
+                            <input type="password" id="nuevaClaveMed" value="1234" required class="w-full p-2.5 border rounded-lg text-sm">
+                        </div>
+                        <div class="md:col-span-2 text-right">
+                            <button type="submit" class="bg-teal-600 hover:bg-teal-700 text-white font-bold px-6 py-2.5 rounded-lg text-sm transition">
+                                + Registrar Médico
+                            </button>
+                        </div>
+                    </form>
+                </div>
+
+                <!-- Tabla de Médicos Existentes -->
+                <div class="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
+                    <h2 class="text-lg font-bold text-slate-800 mb-4">Médicos Registrados en la Clínica</h2>
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left border-collapse text-sm">
+                            <thead>
+                                <tr class="bg-slate-50 text-slate-500 uppercase border-b text-xs">
+                                    <th class="p-3">Médico</th>
+                                    <th class="p-3">Especialidad</th>
+                                    <th class="p-3">Usuario</th>
+                                    <th class="p-3 text-right">Acción</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${state.medicos.length === 0 ? `
+                                    <tr><td colspan="4" class="p-4 text-center text-slate-400">No hay médicos registrados.</td></tr>
+                                ` : state.medicos.map(m => `
+                                    <tr class="border-b hover:bg-slate-50">
+                                        <td class="p-3 font-bold text-slate-800">${m.nombre}</td>
+                                        <td class="p-3"><span class="bg-teal-50 text-teal-700 px-2.5 py-0.5 rounded-full text-xs font-bold border border-teal-200">${m.especialidad}</span></td>
+                                        <td class="p-3 font-mono text-slate-600 text-xs">${m.usuario}</td>
+                                        <td class="p-3 text-right">
+                                            <button onclick="eliminarMedico(${m.id})" class="bg-rose-50 text-rose-600 hover:bg-rose-100 font-bold px-3 py-1 rounded text-xs transition">Eliminar</button>
+                                        </td>
+                                    </tr>
+                                `).join('')}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </main>
+            `;
+        }
+
+        // --- DASHBOARD RECEPCIÓN / SECRETARÍA ---
         function renderDashboardSecretaria() {
             return `
             <header class="bg-white border-b border-slate-200 sticky top-0 z-30 shadow-sm p-4 flex justify-between items-center">
@@ -258,6 +353,7 @@ const SUPABASE_ANON_KEY = 'sb_publishable_7LjQUUFOBhq1oD9ibF_LzQ_pdG-kX4G';
             `;
         }
 
+        // --- DASHBOARD MÉDICO ---
         function renderDashboardMedico() {
             const medActual = state.usuarioActual;
             const turnosFechaMed = state.turnos.filter(t => t.medicoId === medActual.id && t.estado !== 'Cancelado');
@@ -280,7 +376,7 @@ const SUPABASE_ANON_KEY = 'sb_publishable_7LjQUUFOBhq1oD9ibF_LzQ_pdG-kX4G';
                 <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex flex-col sm:flex-row justify-between items-center gap-4">
                     <div>
                         <h2 class="font-bold text-slate-800 text-lg flex items-center gap-2">
-                            <i data-lucide="calendar-days" class="w-5 h-5 text-teal-600"></i> Agenda Diaria del Profesional
+                            <i data-lucide="calendar-days" class="w-5 h-5 text-teal-600"></i> Agenda Diaria de Consultas
                         </h2>
                         <p class="text-xs text-slate-500">Bloques de consulta de 1 hora (Mañana 8-12 | Tarde 18-22)</p>
                     </div>
@@ -342,6 +438,7 @@ const SUPABASE_ANON_KEY = 'sb_publishable_7LjQUUFOBhq1oD9ibF_LzQ_pdG-kX4G';
             }
         }
 
+        // --- MODALES ---
         function renderModalNuevoTurno() {
             const med = state.medicoSeleccionado;
             const horasOcupadas = state.turnos.filter(t => t.medicoId === med.id && t.estado !== 'Cancelado').map(t => t.hora);
@@ -394,7 +491,7 @@ const SUPABASE_ANON_KEY = 'sb_publishable_7LjQUUFOBhq1oD9ibF_LzQ_pdG-kX4G';
 
                         <div class="flex justify-end gap-2 pt-3 border-t">
                             <button type="button" onclick="cerrarModalTurno()" class="px-4 py-2 text-slate-500 text-sm">Cancelar</button>
-                            <button type="submit" class="px-5 py-2 bg-teal-600 text-white rounded-lg font-semibold text-sm">Guardar</button>
+                            <button type="submit" class="px-5 py-2 bg-teal-600 text-white rounded-lg font-semibold text-sm">Guardar Turno</button>
                         </div>
                     </form>
                 </div>
@@ -407,11 +504,11 @@ const SUPABASE_ANON_KEY = 'sb_publishable_7LjQUUFOBhq1oD9ibF_LzQ_pdG-kX4G';
             return `
             <div class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
                 <div class="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl text-center">
-                    <h3 class="text-xl font-bold text-slate-800">¡Turno Guardado en Supabase!</h3>
+                    <h3 class="text-xl font-bold text-slate-800">¡Turno Guardado con Éxito!</h3>
                     <p class="text-slate-500 text-sm mt-1 mb-6">¿Deseas enviar el comprobante por WhatsApp a <strong>${t.paciente}</strong>?</p>
                     <div class="space-y-3">
-                        <button onclick="enviarComprobanteWhatsapp('${t.id}')" class="w-full bg-emerald-600 text-white font-bold py-3 rounded-xl shadow-lg">📱 Enviar Comprobante</button>
-                        <button onclick="cerrarModalWhatsapp()" class="w-full bg-slate-100 text-slate-700 font-semibold py-2.5 rounded-xl text-sm">Cerrar</button>
+                        <button onclick="enviarComprobanteWhatsapp('${t.id}')" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3 rounded-xl shadow-lg transition">📱 Enviar Comprobante</button>
+                        <button onclick="cerrarModalWhatsapp()" class="w-full bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold py-2.5 rounded-xl text-sm transition">Cerrar</button>
                     </div>
                 </div>
             </div>
@@ -431,7 +528,7 @@ const SUPABASE_ANON_KEY = 'sb_publishable_7LjQUUFOBhq1oD9ibF_LzQ_pdG-kX4G';
                             <option value="Atendido" ${t.estado === 'Atendido' ? 'selected' : ''}>Atendido</option>
                             <option value="Cancelado" ${t.estado === 'Cancelado' ? 'selected' : ''}>Cancelado</option>
                         </select>
-                        <textarea id="textoNota" rows="4" class="w-full p-3 border rounded-lg text-sm" placeholder="Diagnóstico...">${t.notaConsulta || ''}</textarea>
+                        <textarea id="textoNota" rows="4" class="w-full p-3 border rounded-lg text-sm" placeholder="Diagnóstico e indicaciones clínicas...">${t.notaConsulta || ''}</textarea>
                         <div class="flex justify-end gap-2 pt-2">
                             <button type="button" onclick="cerrarModalNota()" class="px-4 py-2 text-slate-500 text-sm">Cancelar</button>
                             <button type="submit" class="px-5 py-2 bg-teal-600 text-white rounded-lg text-sm font-semibold">Guardar Cambios</button>
@@ -442,7 +539,84 @@ const SUPABASE_ANON_KEY = 'sb_publishable_7LjQUUFOBhq1oD9ibF_LzQ_pdG-kX4G';
             `;
         }
 
-        // --- LÓGICA CON SUPABASE ---
+        // --- LÓGICA Y FUNCIONES DE ACCIÓN ---
+        function cambiarTabLogin(tab) {
+            state.tabLogin = tab;
+            render();
+        }
+
+        function loginAdmin(e) {
+            e.preventDefault();
+            const u = document.getElementById('adminUsuario').value.trim();
+            const c = document.getElementById('adminClave').value;
+            if (u === 'admin' && c === 'admin123') {
+                state.usuarioActual = { rol: 'admin', nombre: 'Administrador General' };
+                render();
+            } else {
+                alert('Credenciales de administrador incorrectas');
+            }
+        }
+
+        function loginSecretaria(e) {
+            e.preventDefault();
+            const u = document.getElementById('secUsuario').value.trim();
+            const c = document.getElementById('secClave').value;
+            if (u === 'secretaria' && c === '1234') {
+                state.usuarioActual = { rol: 'secretaria', nombre: 'Recepción General' };
+                render();
+            } else {
+                alert('Credenciales de recepción incorrectas');
+            }
+        }
+
+        function loginMedico(e) {
+            e.preventDefault();
+            const u = document.getElementById('medUsuario').value.trim().toLowerCase();
+            const c = document.getElementById('medClave').value;
+
+            const medEncontrado = state.medicos.find(m => m.usuario.toLowerCase() === u && m.clave === c);
+            if (medEncontrado) {
+                state.usuarioActual = { rol: 'medico', ...medEncontrado };
+                render();
+            } else {
+                alert('Usuario o contraseña de médico incorrectos');
+            }
+        }
+
+        function cerrarSesion() {
+            state.usuarioActual = null;
+            render();
+        }
+
+        async function crearNuevoMedico(e) {
+            e.preventDefault();
+            const nuevoMed = {
+                nombre: document.getElementById('nuevoNombreMed').value,
+                especialidad: document.getElementById('nuevaEspecialidadMed').value,
+                usuario: document.getElementById('nuevoUsuarioMed').value.trim().toLowerCase(),
+                clave: document.getElementById('nuevaClaveMed').value
+            };
+
+            const { error } = await supabaseClient.from('medicos').insert([nuevoMed]);
+            if (error) {
+                alert('Error al crear médico: ' + error.message);
+                return;
+            }
+
+            alert('¡Médico creado correctamente!');
+            await cargarDatosIniciales();
+        }
+
+        async function eliminarMedico(idMed) {
+            if (!confirm('¿Desea eliminar a este médico del sistema?')) return;
+            const { error } = await supabaseClient.from('medicos').delete().eq('id', idMed);
+            if (error) {
+                alert('Error al eliminar: ' + error.message);
+            } else {
+                await cargarDatosIniciales();
+            }
+        }
+
         async function guardarTurno(e) {
             e.preventDefault();
             const nuevoTurnoDB = {
@@ -497,51 +671,6 @@ const SUPABASE_ANON_KEY = 'sb_publishable_7LjQUUFOBhq1oD9ibF_LzQ_pdG-kX4G';
 
             cerrarModalNota();
             await cargarTurnos();
-        }
-
-        function cambiarTabLogin(rol) {
-            const btnSec = document.getElementById('btnTabSecretaria');
-            const btnMed = document.getElementById('btnTabMedico');
-            const formSec = document.getElementById('formLoginSecretaria');
-            const formMed = document.getElementById('formLoginMedico');
-
-            if (rol === 'secretaria') {
-                btnSec.className = "flex-1 py-2 rounded-lg bg-white text-teal-700 shadow-sm transition";
-                btnMed.className = "flex-1 py-2 rounded-lg text-slate-500 transition";
-                formSec.classList.remove('hidden');
-                formMed.classList.add('hidden');
-            } else {
-                btnMed.className = "flex-1 py-2 rounded-lg bg-white text-teal-700 shadow-sm transition";
-                btnSec.className = "flex-1 py-2 rounded-lg text-slate-500 transition";
-                formMed.classList.remove('hidden');
-                formSec.classList.add('hidden');
-            }
-        }
-
-        function loginSecretaria(e) {
-            e.preventDefault();
-            state.usuarioActual = { rol: 'secretaria', nombre: 'Recepción General' };
-            render();
-        }
-
-        function loginMedico(e) {
-            e.preventDefault();
-            const espec = document.getElementById('medEspecialidad').value;
-            const usu = document.getElementById('medUsuario').value.trim().toLowerCase();
-
-            const medEncontrado = state.medicos.find(m => m.usuario.toLowerCase() === usu && m.especialidad === espec);
-
-            if (medEncontrado) {
-                state.usuarioActual = { rol: 'medico', ...medEncontrado };
-                render();
-            } else {
-                alert('Usuario o especialidad incorrectos.');
-            }
-        }
-
-        function cerrarSesion() {
-            state.usuarioActual = null;
-            render();
         }
 
         async function cambiarFechaGlobal(nuevaFecha) {
@@ -619,7 +748,7 @@ const SUPABASE_ANON_KEY = 'sb_publishable_7LjQUUFOBhq1oD9ibF_LzQ_pdG-kX4G';
             }
         }
 
-        // Inicializar cargando datos desde Supabase al abrir
+        // Carga inicial
         window.onload = cargarDatosIniciales;
     </script>
 </body>
