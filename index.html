@@ -14,13 +14,11 @@
     <div id="app" class="flex-grow flex flex-col"></div>
 
     <script>
-        // --- CONSTANTES DE HORARIOS PERMITIDOS ---
         const BLOQUES_HORARIOS = [
             "08:00", "09:00", "10:00", "11:00",
             "18:00", "19:00", "20:00", "21:00"
         ];
 
-        // --- ESTADO GLOBAL ---
         const state = {
             usuarioActual: null,
             medicos: [
@@ -29,7 +27,7 @@
                 { id: 3, nombre: "Dr. Carlos Santillán", especialidad: "Traumatología", usuario: "drsantillan", clave: "1234" },
                 { id: 4, nombre: "Dra. Ana Florencia Silva", especialidad: "Dermatología", usuario: "drasilva", clave: "1234" }
             ],
-            fechaSeleccionada: new Date().toISOString().split('T')[0], // YYYY-MM-DD
+            fechaSeleccionada: new Date().toISOString().split('T')[0],
             turnos: [
                 {
                     id: 101,
@@ -38,7 +36,7 @@
                     hora: "09:00",
                     paciente: "Lucas Peralta",
                     dni: "38123456",
-                    telefono: "3855123456",
+                    telefono: "5493855123456",
                     fechaNacimiento: "1994-05-12",
                     edad: 32,
                     barrio: "Centro",
@@ -50,11 +48,12 @@
             ],
             modalTurnoAbierto: false,
             modalNotaAbierto: false,
+            modalWhatsappAbierto: false,
+            turnoRecienteWhatsapp: null,
             turnoSeleccionadoNota: null,
             medicoSeleccionado: null
         };
 
-        // --- RENDERIZADOR ---
         function render() {
             const app = document.getElementById('app');
             if (!state.usuarioActual) {
@@ -70,7 +69,6 @@
             }
         }
 
-        // --- LOGIN MULTI-ROL ---
         function renderLogin() {
             return `
             <div class="min-h-screen bg-slate-900 flex items-center justify-center p-4">
@@ -130,7 +128,6 @@
             `;
         }
 
-        // --- DASHBOARD RECEPCIÓN ---
         function renderDashboardSecretaria() {
             return `
             <header class="bg-white border-b border-slate-200 sticky top-0 z-30 shadow-sm p-4 flex justify-between items-center">
@@ -147,7 +144,6 @@
             </header>
 
             <main class="max-w-7xl mx-auto p-4 sm:p-6 space-y-8 w-full">
-                <!-- Filtro de Fecha global -->
                 <div class="bg-teal-900 text-white p-4 rounded-xl shadow-md flex flex-col sm:flex-row justify-between items-center gap-4">
                     <div class="flex items-center gap-3">
                         <i data-lucide="calendar" class="w-6 h-6 text-teal-300"></i>
@@ -194,8 +190,8 @@
                                     <th class="p-3">Paciente / Teléfono</th>
                                     <th class="p-3">DNI / Datos</th>
                                     <th class="p-3">Médico</th>
-                                    <th class="p-3">Obra Social</th>
                                     <th class="p-3">Estado</th>
+                                    <th class="p-3 text-right">Notificaciones</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -212,8 +208,15 @@
                                         </td>
                                         <td class="p-3 text-xs">DNI: ${t.dni}<br>${t.edad} años (${t.barrio})</td>
                                         <td class="p-3 font-medium">${med ? med.nombre : '-'}<br><span class="text-xs text-slate-400">${med ? med.especialidad : ''}</span></td>
-                                        <td class="p-3"><span class="bg-slate-100 text-slate-700 text-xs px-2 py-1 rounded font-medium">${t.obraSocial || 'Particular'}</span></td>
                                         <td class="p-3">${badgeEstado(t.estado)}</td>
+                                        <td class="p-3 text-right space-x-1">
+                                            <button onclick="enviarComprobanteWhatsapp('${t.id}')" title="Enviar Comprobante" class="bg-emerald-600 hover:bg-emerald-700 text-white text-xs px-2.5 py-1.5 rounded-md font-semibold transition inline-flex items-center gap-1">
+                                                📱 Comprobante
+                                            </button>
+                                            <button onclick="enviarRecordatorioWhatsapp('${t.id}')" title="Enviar Recordatorio 2hs antes" class="bg-amber-500 hover:bg-amber-600 text-white text-xs px-2.5 py-1.5 rounded-md font-semibold transition inline-flex items-center gap-1">
+                                                ⏰ Recordatorio
+                                            </button>
+                                        </td>
                                     </tr>
                                     `;
                                 }).join('')}
@@ -224,10 +227,10 @@
             </main>
 
             ${state.modalTurnoAbierto ? renderModalNuevoTurno() : ''}
+            ${state.modalWhatsappAbierto ? renderModalWhatsappExito() : ''}
             `;
         }
 
-        // --- DASHBOARD MÉDICO CON CALENDARIO / AGENDA POR HORAS ---
         function renderDashboardMedico() {
             const medActual = state.usuarioActual;
             const turnosFechaMed = state.turnos.filter(t => t.medicoId === medActual.id && t.fecha === state.fechaSeleccionada && t.estado !== 'Cancelado');
@@ -247,8 +250,6 @@
             </header>
 
             <main class="max-w-5xl mx-auto p-4 sm:p-6 space-y-6 w-full">
-                
-                <!-- Barra de selección de fecha para el médico -->
                 <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex flex-col sm:flex-row justify-between items-center gap-4">
                     <div>
                         <h2 class="font-bold text-slate-800 text-lg flex items-center gap-2">
@@ -259,10 +260,7 @@
                     <input type="date" value="${state.fechaSeleccionada}" onchange="cambiarFechaGlobal(this.value)" class="bg-slate-100 border border-slate-300 font-bold text-slate-800 px-3 py-1.5 rounded-lg text-sm outline-none">
                 </div>
 
-                <!-- AGENDA DE BLOQUES HORARIOS DEL MÉDICO -->
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    
-                    <!-- BLOQUE MAÑANA -->
                     <div class="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-sm">
                         <div class="bg-teal-700 text-white p-3 font-bold text-sm flex items-center justify-between">
                             <span><i data-lucide="sun" class="w-4 h-4 inline mr-1"></i> Turno Mañana (08:00 a 12:00 hs)</span>
@@ -272,7 +270,6 @@
                         </div>
                     </div>
 
-                    <!-- BLOQUE TARDE -->
                     <div class="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-sm">
                         <div class="bg-slate-800 text-white p-3 font-bold text-sm flex items-center justify-between">
                             <span><i data-lucide="moon" class="w-4 h-4 inline mr-1"></i> Turno Tarde (18:00 a 22:00 hs)</span>
@@ -281,7 +278,6 @@
                             ${["18:00", "19:00", "20:00", "21:00"].map(hora => renderTarjetaHoraMedico(hora, turnosFechaMed)).join('')}
                         </div>
                     </div>
-
                 </div>
             </main>
 
@@ -289,7 +285,6 @@
             `;
         }
 
-        // --- SUB-COMPONENTE: BLOQUE INDIVIDUAL DE HORA PARA EL MÉDICO ---
         function renderTarjetaHoraMedico(hora, turnosFechaMed) {
             const turno = turnosFechaMed.find(t => t.hora === hora);
             if (turno) {
@@ -320,10 +315,8 @@
             }
         }
 
-        // --- MODAL NUEVO TURNO (RECEPCIÓN CON GRILLA DE HORAS) ---
         function renderModalNuevoTurno() {
             const med = state.medicoSeleccionado;
-            // Obtener las horas ya ocupadas para este médico en la fecha elegida
             const horasOcupadas = state.turnos
                 .filter(t => t.medicoId === med.id && t.fecha === state.fechaSeleccionada && t.estado !== 'Cancelado')
                 .map(t => t.hora);
@@ -335,14 +328,13 @@
                     <p class="text-teal-600 text-xs font-semibold mb-4">Especialista: ${med.nombre} (${med.especialidad})</p>
                     
                     <form onsubmit="guardarTurno(event)" class="space-y-3">
-                        
                         <div>
                             <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Fecha de la Cita *</label>
-                            <input type="date" id="fechaTurno" value="${state.fechaSeleccionada}" required onchange="actualizarHorariosDisponiblesModal(this.value)" class="w-full p-2.5 border border-slate-300 rounded-lg text-sm outline-none focus:ring-2 focus:ring-teal-500">
+                            <input type="date" id="fechaTurno" value="${state.fechaSeleccionada}" required class="w-full p-2.5 border border-slate-300 rounded-lg text-sm outline-none focus:ring-2 focus:ring-teal-500">
                         </div>
 
                         <div>
-                            <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Horario Disponible (Turnos de 1 hora) *</label>
+                            <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Horario Disponible *</label>
                             <select id="horaTurno" required class="w-full p-2.5 border border-slate-300 rounded-lg text-sm outline-none focus:ring-2 focus:ring-teal-500 bg-white font-semibold">
                                 <option value="">Seleccione un horario...</option>
                                 ${BLOQUES_HORARIOS.map(h => {
@@ -358,7 +350,7 @@
                         
                         <div class="grid grid-cols-2 gap-2">
                             <input type="number" id="dni" placeholder="DNI *" required class="w-full p-2.5 border border-slate-300 rounded-lg text-sm outline-none focus:ring-2 focus:ring-teal-500">
-                            <input type="tel" id="telefono" placeholder="Teléfono / WhatsApp *" required class="w-full p-2.5 border border-slate-300 rounded-lg text-sm outline-none focus:ring-2 focus:ring-teal-500">
+                            <input type="tel" id="telefono" placeholder="Teléfono WhatsApp (ej. 3855123456) *" required class="w-full p-2.5 border border-slate-300 rounded-lg text-sm outline-none focus:ring-2 focus:ring-teal-500">
                         </div>
 
                         <div class="grid grid-cols-2 gap-2">
@@ -375,7 +367,7 @@
                             <input type="text" id="barrio" placeholder="Barrio *" required class="w-full p-2.5 border border-slate-300 rounded-lg text-sm outline-none focus:ring-2 focus:ring-teal-500">
                         </div>
 
-                        <input type="text" id="obraSocial" placeholder="Obra Social / Prepaga (ej. IOSEP, OSDE)" class="w-full p-2.5 border border-slate-300 rounded-lg text-sm outline-none focus:ring-2 focus:ring-teal-500">
+                        <input type="text" id="obraSocial" placeholder="Obra Social / Prepaga" class="w-full p-2.5 border border-slate-300 rounded-lg text-sm outline-none focus:ring-2 focus:ring-teal-500">
 
                         <div class="flex justify-end gap-2 pt-3 border-t">
                             <button type="button" onclick="cerrarModalTurno()" class="px-4 py-2 text-slate-500 text-sm hover:bg-slate-100 rounded-lg">Cancelar</button>
@@ -387,7 +379,31 @@
             `;
         }
 
-        // --- MODAL FICHA DE CONSULTA MÉDICA ---
+        // --- VENTANA EMERGENTE DE CONFIRMACIÓN WHATSAPP ---
+        function renderModalWhatsappExito() {
+            const t = state.turnoRecienteWhatsapp;
+            return `
+            <div class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+                <div class="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl text-center">
+                    <div class="w-16 h-16 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mx-auto mb-4">
+                        <i data-lucide="check-circle" class="w-10 h-10"></i>
+                    </div>
+                    <h3 class="text-xl font-bold text-slate-800">¡Turno Agendado con Éxito!</h3>
+                    <p class="text-slate-500 text-sm mt-1 mb-6">¿Deseas enviar el comprobante de confirmación por WhatsApp a <strong>${t.paciente}</strong>?</p>
+                    
+                    <div class="space-y-3">
+                        <button onclick="enviarComprobanteWhatsapp('${t.id}')" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3 rounded-xl transition flex items-center justify-center gap-2 shadow-lg shadow-emerald-600/30">
+                            📱 Enviar Comprobante por WhatsApp
+                        </button>
+                        <button onclick="cerrarModalWhatsapp()" class="w-full bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold py-2.5 rounded-xl transition text-sm">
+                            Omitir por ahora
+                        </button>
+                    </div>
+                </div>
+            </div>
+            `;
+        }
+
         function renderModalNotaConsulta() {
             const t = state.turnoSeleccionadoNota;
             return `
@@ -423,7 +439,47 @@
             `;
         }
 
-        // --- AUXILIARES Y LOGICA ---
+        // --- FUNCIONES WHATSAPP ---
+        function enviarComprobanteWhatsapp(turnoId) {
+            const t = state.turnos.find(x => x.id.toString() === turnoId.toString());
+            if (!t) return;
+
+            const med = state.medicos.find(m => m.id === t.medicoId);
+            let numTel = t.telefono.replace(/\D/g, ''); // Limpiar caracteres
+            if (!numTel.startsWith('549')) numTel = '549' + numTel; // Formato Argentina (+54 9)
+
+            const texto = `*Centro Médico San Martín* 🏥%0A%0A` +
+                          `¡Hola *${t.paciente}*! Confirmamos tu turno médico:%0A%0A` +
+                          `🩺 *Especialista:* ${med ? med.nombre : ''} (${med ? med.especialidad : ''})%0A` +
+                          `📅 *Fecha:* ${t.fecha}%0A` +
+                          `⏰ *Horario:* ${t.hora} hs%0A` +
+                          `💳 *Obra Social:* ${t.obraSocial}%0A%0A` +
+                          `📍 *Ubicación:* Av. Belgrano Sur 1234, Santiago del Estero.%0A` +
+                          `_Por favor presentarse 10 minutos antes._`;
+
+            window.open(`https://wa.me/${numTel}?text=${texto}`, '_blank');
+            if (state.modalWhatsappAbierto) cerrarModalWhatsapp();
+        }
+
+        function enviarRecordatorioWhatsapp(turnoId) {
+            const t = state.turnos.find(x => x.id.toString() === turnoId.toString());
+            if (!t) return;
+
+            const med = state.medicos.find(m => m.id === t.medicoId);
+            let numTel = t.telefono.replace(/\D/g, '');
+            if (!numTel.startsWith('549')) numTel = '549' + numTel;
+
+            const texto = `⏰ *RECORDATORIO DE TURNO MÉDICO*%0A%0A` +
+                          `Hola *${t.paciente}*, te recordamos que hoy tenés tu consulta médica:%0A%0A` +
+                          `🩺 *Médico:* ${med ? med.nombre : ''}%0A` +
+                          `⏰ *Horario:* ${t.hora} hs%0A` +
+                          `📍 *Centro Médico San Martín*%0A%0A` +
+                          `¡Te esperamos! Por favor confirmar asistencia.`;
+
+            window.open(`https://wa.me/${numTel}?text=${texto}`, '_blank');
+        }
+
+        // --- AUXILIARES Y LÓGICA GENERAL ---
         function cambiarTabLogin(rol) {
             const btnSec = document.getElementById('btnTabSecretaria');
             const btnMed = document.getElementById('btnTabMedico');
@@ -460,7 +516,7 @@
                 state.usuarioActual = { rol: 'medico', ...medEncontrado };
                 render();
             } else {
-                alert('Usuario o especialidad incorrectos. Para la prueba podés ingresar con usuario: drgomez y especialidad: Cardiología.');
+                alert('Usuario o especialidad incorrectos.');
             }
         }
 
@@ -489,6 +545,12 @@
             render();
         }
 
+        function cerrarModalWhatsapp() {
+            state.modalWhatsappAbierto = false;
+            state.turnoRecienteWhatsapp = null;
+            render();
+        }
+
         function calcularEdad(fechaNacStr) {
             if (!fechaNacStr) return;
             const hoy = new Date();
@@ -501,14 +563,11 @@
 
         function guardarTurno(e) {
             e.preventDefault();
-            const fechaCita = document.getElementById('fechaTurno').value;
-            const horaCita = document.getElementById('horaTurno').value;
-
-            state.turnos.push({
+            const nuevoTurno = {
                 id: Date.now(),
                 medicoId: state.medicoSeleccionado.id,
-                fecha: fechaCita,
-                hora: horaCita,
+                fecha: document.getElementById('fechaTurno').value,
+                hora: document.getElementById('horaTurno').value,
                 paciente: document.getElementById('paciente').value,
                 dni: document.getElementById('dni').value,
                 telefono: document.getElementById('telefono').value,
@@ -519,9 +578,15 @@
                 obraSocial: document.getElementById('obraSocial').value || 'Particular',
                 estado: 'En espera',
                 notaConsulta: ''
-            });
+            };
 
+            state.turnos.push(nuevoTurno);
             cerrarModalTurno();
+
+            // Abrir popup de confirmación por WhatsApp
+            state.turnoRecienteWhatsapp = nuevoTurno;
+            state.modalWhatsappAbierto = true;
+            render();
         }
 
         function abrirModalNota(turnoId) {
