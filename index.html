@@ -14,140 +14,372 @@
     <div id="app" class="flex-grow flex flex-col"></div>
 
     <script>
+        // --- CONSTANTES DE HORARIOS PERMITIDOS ---
+        const BLOQUES_HORARIOS = [
+            "08:00", "09:00", "10:00", "11:00",
+            "18:00", "19:00", "20:00", "21:00"
+        ];
+
+        // --- ESTADO GLOBAL ---
         const state = {
             usuarioActual: null,
-            medicoSeleccionado: null,
             medicos: [
-                { id: 1, nombre: "Dr. Roberto Gómez", especialidad: "Cardiología", matricula: "M.P. 3421", horario: "08:00 - 13:00", avatar: "https://images.unsplash.com/photo-1622253692010-333f2da6031d?w=150&auto=format&fit=crop&q=80" },
-                { id: 2, nombre: "Dra. María Laura Juárez", especialidad: "Pediatría", matricula: "M.P. 4105", horario: "14:00 - 19:00", avatar: "https://images.unsplash.com/photo-1594824813566-78853a8019e1?w=150&auto=format&fit=crop&q=80" },
-                { id: 3, nombre: "Dr. Carlos Santillán", especialidad: "Traumatología", matricula: "M.P. 2890", horario: "09:00 - 16:00", avatar: "https://images.unsplash.com/photo-1537368910025-700350fe46c7?w=150&auto=format&fit=crop&q=80" },
-                { id: 4, nombre: "Dra. Ana Florencia Silva", especialidad: "Dermatología", matricula: "M.P. 5120", horario: "08:00 - 12:00", avatar: "https://images.unsplash.com/photo-1559839734-2b71ea197ec2?w=150&auto=format&fit=crop&q=80" }
+                { id: 1, nombre: "Dr. Roberto Gómez", especialidad: "Cardiología", usuario: "drgomez", clave: "1234" },
+                { id: 2, nombre: "Dra. María Laura Juárez", especialidad: "Pediatría", usuario: "drajuarez", clave: "1234" },
+                { id: 3, nombre: "Dr. Carlos Santillán", especialidad: "Traumatología", usuario: "drsantillan", clave: "1234" },
+                { id: 4, nombre: "Dra. Ana Florencia Silva", especialidad: "Dermatología", usuario: "drasilva", clave: "1234" }
             ],
-            turnos: [],
+            fechaSeleccionada: new Date().toISOString().split('T')[0], // YYYY-MM-DD
+            turnos: [
+                {
+                    id: 101,
+                    medicoId: 1,
+                    fecha: new Date().toISOString().split('T')[0],
+                    hora: "09:00",
+                    paciente: "Lucas Peralta",
+                    dni: "38123456",
+                    telefono: "3855123456",
+                    fechaNacimiento: "1994-05-12",
+                    edad: 32,
+                    barrio: "Centro",
+                    sexo: "Masculino",
+                    obraSocial: "IOSEP",
+                    estado: "En espera",
+                    notaConsulta: ""
+                }
+            ],
             modalTurnoAbierto: false,
-            filtroMedicoHistorial: "todos"
+            modalNotaAbierto: false,
+            turnoSeleccionadoNota: null,
+            medicoSeleccionado: null
         };
 
+        // --- RENDERIZADOR ---
         function render() {
             const app = document.getElementById('app');
             if (!state.usuarioActual) {
                 app.innerHTML = renderLogin();
-            } else {
-                app.innerHTML = renderDashboard();
+            } else if (state.usuarioActual.rol === 'secretaria') {
+                app.innerHTML = renderDashboardSecretaria();
+            } else if (state.usuarioActual.rol === 'medico') {
+                app.innerHTML = renderDashboardMedico();
             }
+
             if (window.lucide) {
                 setTimeout(() => lucide.createIcons(), 50);
             }
         }
 
+        // --- LOGIN MULTI-ROL ---
         function renderLogin() {
             return `
             <div class="min-h-screen bg-slate-900 flex items-center justify-center p-4">
                 <div class="bg-white p-8 rounded-2xl shadow-2xl w-full max-w-md">
                     <div class="text-center mb-6">
+                        <div class="bg-teal-100 w-14 h-14 rounded-full flex items-center justify-center mx-auto mb-2 text-teal-700">
+                            <i data-lucide="hospital" class="w-7 h-7"></i>
+                        </div>
                         <h1 class="text-2xl font-bold text-slate-800">Consultorio Privado</h1>
-                        <p class="text-slate-500 text-sm mt-1">Acceso para Recepción / Secretaría</p>
+                        <p class="text-slate-500 text-sm mt-1">Acceso al Sistema de Turnos</p>
                     </div>
-                    <form onsubmit="ingresar(event)" class="space-y-4">
+
+                    <div class="flex bg-slate-100 p-1 rounded-xl mb-6 text-sm font-semibold">
+                        <button id="btnTabSecretaria" onclick="cambiarTabLogin('secretaria')" class="flex-1 py-2 rounded-lg bg-white text-teal-700 shadow-sm transition">Recepción</button>
+                        <button id="btnTabMedico" onclick="cambiarTabLogin('medico')" class="flex-1 py-2 rounded-lg text-slate-500 transition">Médico</button>
+                    </div>
+
+                    <form id="formLoginSecretaria" onsubmit="loginSecretaria(event)" class="space-y-4">
                         <div>
-                            <label class="block text-sm font-semibold text-slate-700 mb-1">Usuario</label>
-                            <input type="text" id="usuario" value="secretaria" required class="w-full px-4 py-2.5 rounded-lg border border-slate-300 outline-none focus:ring-2 focus:ring-teal-500">
+                            <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Usuario</label>
+                            <input type="text" id="secUsuario" value="secretaria" required class="w-full px-4 py-2.5 rounded-lg border border-slate-300 outline-none focus:ring-2 focus:ring-teal-500 text-sm">
                         </div>
                         <div>
-                            <label class="block text-sm font-semibold text-slate-700 mb-1">Contraseña</label>
-                            <input type="password" id="password" value="1234" required class="w-full px-4 py-2.5 rounded-lg border border-slate-300 outline-none focus:ring-2 focus:ring-teal-500">
+                            <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Contraseña</label>
+                            <input type="password" id="secClave" value="1234" required class="w-full px-4 py-2.5 rounded-lg border border-slate-300 outline-none focus:ring-2 focus:ring-teal-500 text-sm">
                         </div>
-                        <button type="submit" class="w-full bg-teal-600 hover:bg-teal-700 text-white font-semibold py-3 rounded-lg transition">Ingresar al Sistema</button>
+                        <button type="submit" class="w-full bg-teal-600 hover:bg-teal-700 text-white font-semibold py-3 rounded-lg transition shadow-md shadow-teal-600/30">
+                            Ingresar como Recepción
+                        </button>
+                    </form>
+
+                    <form id="formLoginMedico" onsubmit="loginMedico(event)" class="space-y-4 hidden">
+                        <div>
+                            <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Especialidad Médica *</label>
+                            <select id="medEspecialidad" required class="w-full px-4 py-2.5 rounded-lg border border-slate-300 outline-none focus:ring-2 focus:ring-teal-500 text-sm bg-white">
+                                <option value="">Seleccione especialidad...</option>
+                                <option value="Pediatría">Pediatría</option>
+                                <option value="Traumatología">Traumatología</option>
+                                <option value="Cardiología">Cardiología</option>
+                                <option value="Dermatología">Dermatología</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Usuario Médico *</label>
+                            <input type="text" id="medUsuario" placeholder="Ej. drgomez" required class="w-full px-4 py-2.5 rounded-lg border border-slate-300 outline-none focus:ring-2 focus:ring-teal-500 text-sm">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Contraseña *</label>
+                            <input type="password" id="medClave" value="1234" required class="w-full px-4 py-2.5 rounded-lg border border-slate-300 outline-none focus:ring-2 focus:ring-teal-500 text-sm">
+                        </div>
+                        <button type="submit" class="w-full bg-slate-900 hover:bg-teal-700 text-white font-semibold py-3 rounded-lg transition shadow-md">
+                            Ingresar al Portal Médico
+                        </button>
                     </form>
                 </div>
             </div>
             `;
         }
 
-        function renderDashboard() {
+        // --- DASHBOARD RECEPCIÓN ---
+        function renderDashboardSecretaria() {
             return `
             <header class="bg-white border-b border-slate-200 sticky top-0 z-30 shadow-sm p-4 flex justify-between items-center">
-                <h1 class="font-bold text-slate-800 text-lg">Centro Médico San Martín</h1>
-                <button onclick="cerrarSesion()" class="text-sm text-red-600 font-semibold">Cerrar Sesión</button>
+                <div class="flex items-center gap-3">
+                    <div class="bg-teal-600 text-white p-2 rounded-lg"><i data-lucide="hospital" class="w-5 h-5"></i></div>
+                    <div>
+                        <h1 class="font-bold text-slate-800 text-base">Centro Médico San Martín</h1>
+                        <p class="text-xs text-slate-500">Panel de Recepción / Secretaría</p>
+                    </div>
+                </div>
+                <button onclick="cerrarSesion()" class="text-sm text-red-600 font-semibold hover:bg-red-50 px-3 py-1.5 rounded-lg transition flex items-center gap-1">
+                    <i data-lucide="log-out" class="w-4 h-4"></i> Salir
+                </button>
             </header>
 
             <main class="max-w-7xl mx-auto p-4 sm:p-6 space-y-8 w-full">
+                <!-- Filtro de Fecha global -->
+                <div class="bg-teal-900 text-white p-4 rounded-xl shadow-md flex flex-col sm:flex-row justify-between items-center gap-4">
+                    <div class="flex items-center gap-3">
+                        <i data-lucide="calendar" class="w-6 h-6 text-teal-300"></i>
+                        <div>
+                            <h2 class="font-bold text-base">Agenda para el día</h2>
+                            <p class="text-xs text-teal-200">Seleccione la fecha para coordinar o ver disponibilidad</p>
+                        </div>
+                    </div>
+                    <input type="date" value="${state.fechaSeleccionada}" onchange="cambiarFechaGlobal(this.value)" class="bg-white text-slate-800 font-bold px-4 py-2 rounded-lg outline-none text-sm">
+                </div>
+
                 <section>
-                    <h2 class="text-xl font-bold text-slate-800 mb-4">Médicos Disponibles</h2>
+                    <h2 class="text-xl font-bold text-slate-800 mb-4">Médicos en Consultorio</h2>
                     <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                        ${state.medicos.map(m => `
-                            <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
-                                <h3 class="font-bold text-slate-800">${m.nombre}</h3>
-                                <p class="text-teal-600 text-sm font-medium">${m.especialidad}</p>
-                                <p class="text-slate-400 text-xs mt-1">${m.horario}</p>
-                                <button onclick="abrirModal(${m.id})" class="mt-4 w-full bg-slate-900 text-white text-sm font-semibold py-2 rounded-lg">Agendar Turno</button>
+                        ${state.medicos.map(m => {
+                            const turnosDelDia = state.turnos.filter(t => t.medicoId === m.id && t.fecha === state.fechaSeleccionada && t.estado !== 'Cancelado');
+                            const libres = BLOQUES_HORARIOS.length - turnosDelDia.length;
+                            return `
+                            <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm flex flex-col justify-between">
+                                <div>
+                                    <h3 class="font-bold text-slate-800">${m.nombre}</h3>
+                                    <span class="inline-block bg-teal-50 text-teal-700 text-xs font-semibold px-2 py-0.5 rounded-full border border-teal-200 mt-1">${m.especialidad}</span>
+                                    <p class="text-xs text-slate-500 mt-3 flex items-center gap-1 font-medium">
+                                        <i data-lucide="clock" class="w-3.5 h-3.5 text-teal-600"></i>
+                                        Disponibles hoy: <strong class="${libres > 0 ? 'text-emerald-600' : 'text-rose-600'}">${libres} de 8 turnos</strong>
+                                    </p>
+                                </div>
+                                <button onclick="abrirModalTurno(${m.id})" class="mt-4 w-full bg-slate-900 hover:bg-teal-600 text-white text-sm font-semibold py-2 rounded-lg transition flex items-center justify-center gap-2">
+                                    <i data-lucide="calendar-plus" class="w-4 h-4"></i> Agendar Turno
+                                </button>
                             </div>
-                        `).join('')}
+                            `;
+                        }).join('')}
                     </div>
                 </section>
 
-                <section class="bg-white rounded-xl border border-slate-200 p-4">
-                    <h2 class="text-xl font-bold text-slate-800 mb-4">Agenda de Turnos</h2>
+                <section class="bg-white rounded-xl border border-slate-200 p-5 shadow-sm">
+                    <h2 class="text-xl font-bold text-slate-800 mb-4">Turnos Agendados para el ${state.fechaSeleccionada}</h2>
                     <div class="overflow-x-auto">
                         <table class="w-full text-left border-collapse text-sm">
                             <thead>
-                                <tr class="bg-slate-50 text-slate-500 uppercase border-b">
-                                    <th class="p-3">Hora</th>
-                                    <th class="p-3">Paciente</th>
-                                    <th class="p-3">DNI</th>
+                                <tr class="bg-slate-50 text-slate-500 uppercase border-b text-xs">
+                                    <th class="p-3">Horario</th>
+                                    <th class="p-3">Paciente / Teléfono</th>
+                                    <th class="p-3">DNI / Datos</th>
                                     <th class="p-3">Médico</th>
+                                    <th class="p-3">Obra Social</th>
                                     <th class="p-3">Estado</th>
                                 </tr>
                             </thead>
                             <tbody>
-                                ${state.turnos.length === 0 ? `
-                                    <tr><td colspan="5" class="p-4 text-center text-slate-400">No hay turnos agendados aún.</td></tr>
-                                ` : state.turnos.map(t => `
-                                    <tr class="border-b">
-                                        <td class="p-3 font-bold">${t.hora}</td>
-                                        <td class="p-3">${t.paciente} (${t.edad} yrs, B° ${t.barrio})</td>
-                                        <td class="p-3">${t.dni}</td>
-                                        <td class="p-3">${t.medico}</td>
-                                        <td class="p-3"><span class="bg-amber-100 text-amber-800 text-xs font-bold px-2 py-1 rounded">${t.estado}</span></td>
+                                ${obtenerTurnosFechaActual().length === 0 ? `
+                                    <tr><td colspan="6" class="p-6 text-center text-slate-400">No hay turnos agendados para esta fecha.</td></tr>
+                                ` : obtenerTurnosFechaActual().map(t => {
+                                    const med = state.medicos.find(m => m.id === t.medicoId);
+                                    return `
+                                    <tr class="border-b hover:bg-slate-50 transition">
+                                        <td class="p-3 font-bold text-slate-800">${t.hora} hs</td>
+                                        <td class="p-3">
+                                            <p class="font-semibold text-slate-800">${t.paciente}</p>
+                                            <p class="text-xs text-teal-600 font-medium">📞 ${t.telefono}</p>
+                                        </td>
+                                        <td class="p-3 text-xs">DNI: ${t.dni}<br>${t.edad} años (${t.barrio})</td>
+                                        <td class="p-3 font-medium">${med ? med.nombre : '-'}<br><span class="text-xs text-slate-400">${med ? med.especialidad : ''}</span></td>
+                                        <td class="p-3"><span class="bg-slate-100 text-slate-700 text-xs px-2 py-1 rounded font-medium">${t.obraSocial || 'Particular'}</span></td>
+                                        <td class="p-3">${badgeEstado(t.estado)}</td>
                                     </tr>
-                                `).join('')}
+                                    `;
+                                }).join('')}
                             </tbody>
                         </table>
                     </div>
                 </section>
             </main>
 
-            ${state.modalTurnoAbierto ? renderModal() : ''}
+            ${state.modalTurnoAbierto ? renderModalNuevoTurno() : ''}
             `;
         }
 
-        function renderModal() {
-            const m = state.medicoSeleccionado;
+        // --- DASHBOARD MÉDICO CON CALENDARIO / AGENDA POR HORAS ---
+        function renderDashboardMedico() {
+            const medActual = state.usuarioActual;
+            const turnosFechaMed = state.turnos.filter(t => t.medicoId === medActual.id && t.fecha === state.fechaSeleccionada && t.estado !== 'Cancelado');
+
             return `
-            <div class="fixed inset-0 bg-slate-900/60 flex items-center justify-center p-4 z-50">
-                <div class="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl">
-                    <h3 class="text-lg font-bold text-slate-800 mb-1">Nuevo Turno</h3>
-                    <p class="text-slate-500 text-xs mb-4">Atención con ${m.nombre}</p>
-                    <form onsubmit="guardarTurno(event)" class="space-y-3">
-                        <input type="text" id="paciente" placeholder="Nombre y Apellido *" required class="w-full p-2 border rounded-lg text-sm">
-                        <div class="grid grid-cols-2 gap-2">
-                            <input type="number" id="dni" placeholder="DNI *" required class="w-full p-2 border rounded-lg text-sm">
-                            <input type="date" id="fechaNac" required onchange="calcularEdad(this.value)" class="w-full p-2 border rounded-lg text-sm">
+            <header class="bg-slate-900 text-white border-b border-slate-800 sticky top-0 z-30 shadow-md p-4 flex justify-between items-center">
+                <div class="flex items-center gap-3">
+                    <div class="bg-teal-500 text-slate-900 p-2 rounded-lg font-bold"><i data-lucide="stethoscope" class="w-5 h-5"></i></div>
+                    <div>
+                        <h1 class="font-bold text-white text-base">${medActual.nombre}</h1>
+                        <p class="text-xs text-teal-400 font-medium">${medActual.especialidad}</p>
+                    </div>
+                </div>
+                <button onclick="cerrarSesion()" class="text-sm text-slate-300 hover:text-red-400 transition flex items-center gap-1">
+                    <i data-lucide="log-out" class="w-4 h-4"></i> Salir
+                </button>
+            </header>
+
+            <main class="max-w-5xl mx-auto p-4 sm:p-6 space-y-6 w-full">
+                
+                <!-- Barra de selección de fecha para el médico -->
+                <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex flex-col sm:flex-row justify-between items-center gap-4">
+                    <div>
+                        <h2 class="font-bold text-slate-800 text-lg flex items-center gap-2">
+                            <i data-lucide="calendar-days" class="w-5 h-5 text-teal-600"></i> Agenda Diaria del Profesional
+                        </h2>
+                        <p class="text-xs text-slate-500">Bloques de consulta de 1 hora (Mañana 8-12 | Tarde 18-22)</p>
+                    </div>
+                    <input type="date" value="${state.fechaSeleccionada}" onchange="cambiarFechaGlobal(this.value)" class="bg-slate-100 border border-slate-300 font-bold text-slate-800 px-3 py-1.5 rounded-lg text-sm outline-none">
+                </div>
+
+                <!-- AGENDA DE BLOQUES HORARIOS DEL MÉDICO -->
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    
+                    <!-- BLOQUE MAÑANA -->
+                    <div class="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-sm">
+                        <div class="bg-teal-700 text-white p-3 font-bold text-sm flex items-center justify-between">
+                            <span><i data-lucide="sun" class="w-4 h-4 inline mr-1"></i> Turno Mañana (08:00 a 12:00 hs)</span>
                         </div>
+                        <div class="divide-y divide-slate-100">
+                            ${["08:00", "09:00", "10:00", "11:00"].map(hora => renderTarjetaHoraMedico(hora, turnosFechaMed)).join('')}
+                        </div>
+                    </div>
+
+                    <!-- BLOQUE TARDE -->
+                    <div class="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-sm">
+                        <div class="bg-slate-800 text-white p-3 font-bold text-sm flex items-center justify-between">
+                            <span><i data-lucide="moon" class="w-4 h-4 inline mr-1"></i> Turno Tarde (18:00 a 22:00 hs)</span>
+                        </div>
+                        <div class="divide-y divide-slate-100">
+                            ${["18:00", "19:00", "20:00", "21:00"].map(hora => renderTarjetaHoraMedico(hora, turnosFechaMed)).join('')}
+                        </div>
+                    </div>
+
+                </div>
+            </main>
+
+            ${state.modalNotaAbierto ? renderModalNotaConsulta() : ''}
+            `;
+        }
+
+        // --- SUB-COMPONENTE: BLOQUE INDIVIDUAL DE HORA PARA EL MÉDICO ---
+        function renderTarjetaHoraMedico(hora, turnosFechaMed) {
+            const turno = turnosFechaMed.find(t => t.hora === hora);
+            if (turno) {
+                return `
+                <div class="p-4 bg-teal-50/50 hover:bg-teal-50 transition flex justify-between items-start gap-3">
+                    <div>
+                        <span class="inline-block font-black text-slate-800 text-sm bg-teal-100 text-teal-800 px-2 py-0.5 rounded">${hora} hs</span>
+                        <h4 class="font-bold text-slate-900 mt-1">${turno.paciente} (${turno.edad} yrs)</h4>
+                        <p class="text-xs text-slate-600">DNI: ${turno.dni} | Tel: <strong class="text-teal-700">${turno.telefono}</strong></p>
+                        <p class="text-xs text-slate-500">Barrio: ${turno.barrio} | OS: ${turno.obraSocial}</p>
+                        ${turno.notaConsulta ? `<p class="text-xs bg-white p-2 rounded border border-slate-200 italic mt-2 text-slate-700">Nota: ${turno.notaConsulta}</p>` : ''}
+                    </div>
+                    <div class="text-right flex flex-col items-end gap-2">
+                        ${badgeEstado(turno.estado)}
+                        <button onclick="abrirModalNota(${turno.id})" class="text-xs bg-teal-600 hover:bg-teal-700 text-white font-semibold px-2.5 py-1 rounded transition flex items-center gap-1 mt-1">
+                            <i data-lucide="edit-3" class="w-3 h-3"></i> Ficha
+                        </button>
+                    </div>
+                </div>
+                `;
+            } else {
+                return `
+                <div class="p-4 bg-white flex justify-between items-center text-slate-400 text-sm">
+                    <span class="font-semibold text-slate-600 bg-slate-100 px-2 py-0.5 rounded">${hora} hs</span>
+                    <span class="text-xs italic font-medium text-slate-300">Disponible / Sin asignación</span>
+                </div>
+                `;
+            }
+        }
+
+        // --- MODAL NUEVO TURNO (RECEPCIÓN CON GRILLA DE HORAS) ---
+        function renderModalNuevoTurno() {
+            const med = state.medicoSeleccionado;
+            // Obtener las horas ya ocupadas para este médico en la fecha elegida
+            const horasOcupadas = state.turnos
+                .filter(t => t.medicoId === med.id && t.fecha === state.fechaSeleccionada && t.estado !== 'Cancelado')
+                .map(t => t.hora);
+
+            return `
+            <div class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+                <div class="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl max-h-[90vh] overflow-y-auto">
+                    <h3 class="text-lg font-bold text-slate-800 mb-1">Agendar Turno Médicos</h3>
+                    <p class="text-teal-600 text-xs font-semibold mb-4">Especialista: ${med.nombre} (${med.especialidad})</p>
+                    
+                    <form onsubmit="guardarTurno(event)" class="space-y-3">
+                        
+                        <div>
+                            <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Fecha de la Cita *</label>
+                            <input type="date" id="fechaTurno" value="${state.fechaSeleccionada}" required onchange="actualizarHorariosDisponiblesModal(this.value)" class="w-full p-2.5 border border-slate-300 rounded-lg text-sm outline-none focus:ring-2 focus:ring-teal-500">
+                        </div>
+
+                        <div>
+                            <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Horario Disponible (Turnos de 1 hora) *</label>
+                            <select id="horaTurno" required class="w-full p-2.5 border border-slate-300 rounded-lg text-sm outline-none focus:ring-2 focus:ring-teal-500 bg-white font-semibold">
+                                <option value="">Seleccione un horario...</option>
+                                ${BLOQUES_HORARIOS.map(h => {
+                                    const ocupado = horasOcupadas.includes(h);
+                                    return `<option value="${h}" ${ocupado ? 'disabled class="bg-slate-100 text-slate-400"' : 'class="text-slate-800 font-bold"'}>${h} hs ${ocupado ? '(OCUPADO)' : '(Disponible)'}</option>`;
+                                }).join('')}
+                            </select>
+                        </div>
+
+                        <hr class="my-2 border-slate-200">
+
+                        <input type="text" id="paciente" placeholder="Nombre y Apellido del Paciente *" required class="w-full p-2.5 border border-slate-300 rounded-lg text-sm outline-none focus:ring-2 focus:ring-teal-500">
+                        
                         <div class="grid grid-cols-2 gap-2">
-                            <input type="number" id="edad" placeholder="Edad" readonly class="w-full p-2 border rounded-lg text-sm bg-slate-50">
-                            <select id="sexo" required class="w-full p-2 border rounded-lg text-sm bg-white">
+                            <input type="number" id="dni" placeholder="DNI *" required class="w-full p-2.5 border border-slate-300 rounded-lg text-sm outline-none focus:ring-2 focus:ring-teal-500">
+                            <input type="tel" id="telefono" placeholder="Teléfono / WhatsApp *" required class="w-full p-2.5 border border-slate-300 rounded-lg text-sm outline-none focus:ring-2 focus:ring-teal-500">
+                        </div>
+
+                        <div class="grid grid-cols-2 gap-2">
+                            <input type="date" id="fechaNac" required onchange="calcularEdad(this.value)" class="w-full p-2.5 border border-slate-300 rounded-lg text-sm outline-none focus:ring-2 focus:ring-teal-500">
+                            <input type="number" id="edad" placeholder="Edad" readonly class="w-full p-2.5 border border-slate-200 bg-slate-50 text-slate-600 rounded-lg text-sm font-semibold">
+                        </div>
+
+                        <div class="grid grid-cols-2 gap-2">
+                            <select id="sexo" required class="w-full p-2.5 border border-slate-300 rounded-lg text-sm outline-none focus:ring-2 focus:ring-teal-500 bg-white">
                                 <option value="">Sexo...</option>
                                 <option value="Masculino">Masculino</option>
                                 <option value="Femenino">Femenino</option>
                             </select>
+                            <input type="text" id="barrio" placeholder="Barrio *" required class="w-full p-2.5 border border-slate-300 rounded-lg text-sm outline-none focus:ring-2 focus:ring-teal-500">
                         </div>
-                        <input type="text" id="barrio" placeholder="Barrio *" required class="w-full p-2 border rounded-lg text-sm">
-                        <input type="text" id="obraSocial" placeholder="Obra Social / Prepaga" class="w-full p-2 border rounded-lg text-sm">
-                        <input type="datetime-local" id="fechaHora" required class="w-full p-2 border rounded-lg text-sm">
-                        <div class="flex justify-end gap-2 pt-3">
-                            <button type="button" onclick="cerrarModal()" class="px-4 py-2 text-slate-500 text-sm">Cancelar</button>
-                            <button type="submit" class="px-4 py-2 bg-teal-600 text-white rounded-lg font-semibold text-sm">Guardar Turno</button>
+
+                        <input type="text" id="obraSocial" placeholder="Obra Social / Prepaga (ej. IOSEP, OSDE)" class="w-full p-2.5 border border-slate-300 rounded-lg text-sm outline-none focus:ring-2 focus:ring-teal-500">
+
+                        <div class="flex justify-end gap-2 pt-3 border-t">
+                            <button type="button" onclick="cerrarModalTurno()" class="px-4 py-2 text-slate-500 text-sm hover:bg-slate-100 rounded-lg">Cancelar</button>
+                            <button type="submit" class="px-5 py-2 bg-teal-600 hover:bg-teal-700 text-white rounded-lg font-semibold text-sm shadow-md transition">Confirmar y Guardar</button>
                         </div>
                     </form>
                 </div>
@@ -155,10 +387,81 @@
             `;
         }
 
-        function ingresar(e) {
+        // --- MODAL FICHA DE CONSULTA MÉDICA ---
+        function renderModalNotaConsulta() {
+            const t = state.turnoSeleccionadoNota;
+            return `
+            <div class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+                <div class="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl">
+                    <h3 class="text-lg font-bold text-slate-800">Ficha y Diagnóstico de Consulta</h3>
+                    <p class="text-xs text-slate-500 mb-4">Paciente: <strong class="text-slate-800">${t.paciente}</strong> (${t.hora} hs - ${t.fecha})</p>
+                    
+                    <form onsubmit="guardarNotaConsulta(event)" class="space-y-4">
+                        <div>
+                            <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Estado de Atención</label>
+                            <select id="estadoConsulta" class="w-full p-2.5 border border-slate-300 rounded-lg text-sm outline-none bg-white">
+                                <option value="En espera" ${t.estado === 'En espera' ? 'selected' : ''}>En espera</option>
+                                <option value="En consultorio" ${t.estado === 'En consultorio' ? 'selected' : ''}>En consultorio</option>
+                                <option value="Atendido" ${t.estado === 'Atendido' ? 'selected' : ''}>Atendido</option>
+                                <option value="Cancelado" ${t.estado === 'Cancelado' ? 'selected' : ''}>Cancelado</option>
+                            </select>
+                        </div>
+
+                        <div>
+                            <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Notas de la Consulta / Diagnóstico</label>
+                            <textarea id="textoNota" rows="4" placeholder="Escriba aquí los síntomas, indicaciones o diagnóstico del paciente..." 
+                                class="w-full p-3 border border-slate-300 rounded-lg text-sm outline-none focus:ring-2 focus:ring-teal-500">${t.notaConsulta || ''}</textarea>
+                        </div>
+
+                        <div class="flex justify-end gap-2 pt-2 border-t">
+                            <button type="button" onclick="cerrarModalNota()" class="px-4 py-2 text-slate-500 text-sm">Cancelar</button>
+                            <button type="submit" class="px-5 py-2 bg-teal-600 hover:bg-teal-700 text-white rounded-lg font-semibold text-sm shadow-md transition">Guardar en Ficha</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+            `;
+        }
+
+        // --- AUXILIARES Y LOGICA ---
+        function cambiarTabLogin(rol) {
+            const btnSec = document.getElementById('btnTabSecretaria');
+            const btnMed = document.getElementById('btnTabMedico');
+            const formSec = document.getElementById('formLoginSecretaria');
+            const formMed = document.getElementById('formLoginMedico');
+
+            if (rol === 'secretaria') {
+                btnSec.className = "flex-1 py-2 rounded-lg bg-white text-teal-700 shadow-sm transition";
+                btnMed.className = "flex-1 py-2 rounded-lg text-slate-500 transition";
+                formSec.classList.remove('hidden');
+                formMed.classList.add('hidden');
+            } else {
+                btnMed.className = "flex-1 py-2 rounded-lg bg-white text-teal-700 shadow-sm transition";
+                btnSec.className = "flex-1 py-2 rounded-lg text-slate-500 transition";
+                formMed.classList.remove('hidden');
+                formSec.classList.add('hidden');
+            }
+        }
+
+        function loginSecretaria(e) {
             e.preventDefault();
-            state.usuarioActual = { usuario: 'secretaria' };
+            state.usuarioActual = { rol: 'secretaria', nombre: 'Recepción General' };
             render();
+        }
+
+        function loginMedico(e) {
+            e.preventDefault();
+            const espec = document.getElementById('medEspecialidad').value;
+            const usu = document.getElementById('medUsuario').value.trim().toLowerCase();
+
+            const medEncontrado = state.medicos.find(m => m.usuario.toLowerCase() === usu && m.especialidad === espec);
+
+            if (medEncontrado) {
+                state.usuarioActual = { rol: 'medico', ...medEncontrado };
+                render();
+            } else {
+                alert('Usuario o especialidad incorrectos. Para la prueba podés ingresar con usuario: drgomez y especialidad: Cardiología.');
+            }
         }
 
         function cerrarSesion() {
@@ -166,16 +469,22 @@
             render();
         }
 
-        function abrirModal(medicoId) {
+        function cambiarFechaGlobal(nuevaFecha) {
+            state.fechaSeleccionada = nuevaFecha;
+            render();
+        }
+
+        function obtenerTurnosFechaActual() {
+            return state.turnos.filter(t => t.fecha === state.fechaSeleccionada);
+        }
+
+        function abrirModalTurno(medicoId) {
             state.medicoSeleccionado = state.medicos.find(m => m.id === medicoId);
             state.modalTurnoAbierto = true;
             render();
-            const now = new Date();
-            now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
-            document.getElementById('fechaHora').value = now.toISOString().slice(0, 16);
         }
 
-        function cerrarModal() {
+        function cerrarModalTurno() {
             state.modalTurnoAbierto = false;
             render();
         }
@@ -192,20 +501,60 @@
 
         function guardarTurno(e) {
             e.preventDefault();
-            const hora = new Date(document.getElementById('fechaHora').value).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
-            state.turnos.unshift({
-                hora: hora + ' hs',
+            const fechaCita = document.getElementById('fechaTurno').value;
+            const horaCita = document.getElementById('horaTurno').value;
+
+            state.turnos.push({
+                id: Date.now(),
+                medicoId: state.medicoSeleccionado.id,
+                fecha: fechaCita,
+                hora: horaCita,
                 paciente: document.getElementById('paciente').value,
                 dni: document.getElementById('dni').value,
+                telefono: document.getElementById('telefono').value,
+                fechaNacimiento: document.getElementById('fechaNac').value,
                 edad: document.getElementById('edad').value,
+                sexo: document.getElementById('sexo').value,
                 barrio: document.getElementById('barrio').value,
-                medico: state.medicoSeleccionado.nombre,
-                estado: 'En espera'
+                obraSocial: document.getElementById('obraSocial').value || 'Particular',
+                estado: 'En espera',
+                notaConsulta: ''
             });
-            cerrarModal();
+
+            cerrarModalTurno();
         }
 
-        // Ejecución inicial
+        function abrirModalNota(turnoId) {
+            state.turnoSeleccionadoNota = state.turnos.find(t => t.id === turnoId);
+            state.modalNotaAbierto = true;
+            render();
+        }
+
+        function cerrarModalNota() {
+            state.modalNotaAbierto = false;
+            state.turnoSeleccionadoNota = null;
+            render();
+        }
+
+        function guardarNotaConsulta(e) {
+            e.preventDefault();
+            if (state.turnoSeleccionadoNota) {
+                state.turnoSeleccionadoNota.estado = document.getElementById('estadoConsulta').value;
+                state.turnoSeleccionadoNota.notaConsulta = document.getElementById('textoNota').value;
+            }
+            cerrarModalNota();
+        }
+
+        function badgeEstado(est) {
+            switch(est) {
+                case 'En espera': return `<span class="bg-amber-100 text-amber-800 text-xs px-2.5 py-0.5 rounded-full font-bold">En espera</span>`;
+                case 'En consultorio': return `<span class="bg-blue-100 text-blue-800 text-xs px-2.5 py-0.5 rounded-full font-bold">En consultorio</span>`;
+                case 'Atendido': return `<span class="bg-emerald-100 text-emerald-800 text-xs px-2.5 py-0.5 rounded-full font-bold">Atendido</span>`;
+                case 'Cancelado': return `<span class="bg-rose-100 text-rose-800 text-xs px-2.5 py-0.5 rounded-full font-bold">Cancelado</span>`;
+                default: return `<span class="bg-slate-100 text-slate-700 text-xs px-2.5 py-0.5 rounded-full font-bold">${est}</span>`;
+            }
+        }
+
         window.onload = render;
     </script>
 </body>
