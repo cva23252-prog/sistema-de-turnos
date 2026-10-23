@@ -204,41 +204,44 @@
             if (window.lucide) lucide.createIcons();
         }
 
-        // --- COMPONENTE DE LOGIN (CAMPOS LIMPIOS) ---
-        function renderLogin() {
-            return `
-            <div class="min-h-screen bg-slate-900 flex items-center justify-center p-4">
-                <div class="bg-white rounded-2xl shadow-2xl overflow-hidden max-w-md w-full p-8">
-                    <div class="text-center mb-8">
-                        <h1 class="text-2xl font-bold text-slate-800">Sistema de Gestión Médica</h1>
-                        <p class="text-slate-500 text-sm">Seleccione su perfil de acceso</p>
-                    </div>
-                    <div class="space-y-6">
-                        <!-- Admin Login -->
-                        <form onsubmit="loginAdmin(event)" class="border-b pb-4 space-y-3">
-                            <h2 class="font-bold text-amber-600 text-sm">Administrador</h2>
-                            <input type="text" id="adminUsuario" placeholder="Usuario administrador" required class="w-full p-2.5 border rounded text-sm">
-                            <input type="password" id="adminClave" placeholder="••••••••" required class="w-full p-2.5 border rounded text-sm">
-                            <button class="w-full bg-amber-600 hover:bg-amber-700 text-white p-2.5 rounded text-sm font-semibold">Ingresar Admin</button>
-                        </form>
-                        <!-- Recepción Login -->
-                        <form onsubmit="loginSecretaria(event)" class="border-b pb-4 space-y-3">
-                            <h2 class="font-bold text-teal-600 text-sm">Recepción / Secretaría</h2>
-                            <input type="text" id="secUsuario" placeholder="Usuario recepcionista" required class="w-full p-2.5 border rounded text-sm">
-                            <input type="password" id="secClave" placeholder="••••••••" required class="w-full p-2.5 border rounded text-sm">
-                            <button class="w-full bg-teal-600 hover:bg-teal-700 text-white p-2.5 rounded text-sm font-semibold">Ingresar Recepción</button>
-                        </form>
-                        <!-- Médico Login -->
-                        <form onsubmit="loginMedico(event)" class="space-y-3">
-                            <h2 class="font-bold text-indigo-600 text-sm">Portal Médico</h2>
-                            <input type="text" id="medUsuario" placeholder="Usuario médico" required class="w-full p-2.5 border rounded text-sm">
-                            <input type="password" id="medClave" placeholder="••••••••" required class="w-full p-2.5 border rounded text-sm">
-                            <button class="w-full bg-indigo-600 hover:bg-indigo-700 text-white p-2.5 rounded text-sm font-semibold">Ingresar Médico</button>
-                        </form>
-                    </div>
-                </div>
-            </div>`;
-        }
+       // --- COMPONENTE DE LOGIN (SIN AUTOCOMPLETADO NI VALORES SUGERIDOS) ---
+function renderLogin() {
+    return `
+    <div class="min-h-screen bg-slate-900 flex items-center justify-center p-4">
+        <div class="bg-white rounded-2xl shadow-2xl overflow-hidden max-w-md w-full p-8">
+            <div class="text-center mb-8">
+                <h1 class="text-2xl font-bold text-slate-800">Centro Médico</h1>
+                <p class="text-slate-500 text-sm">Acceso al Sistema Integrado</p>
+            </div>
+            <div class="space-y-6">
+                <!-- Recepción Login -->
+                <form onsubmit="loginSecretaria(event)" autocomplete="off" class="border-b pb-4 space-y-3">
+                    <h2 class="font-bold text-teal-600 text-sm">Recepción / Secretaría</h2>
+                    <input type="text" id="secUsuario" name="username_sec" placeholder="Usuario" autocomplete="off" value="" required class="w-full p-2.5 border rounded text-sm">
+                    <input type="password" id="secClave" name="password_sec" placeholder="Contraseña" autocomplete="new-password" value="" required class="w-full p-2.5 border rounded text-sm">
+                    <button class="w-full bg-teal-600 hover:bg-teal-700 text-white p-2.5 rounded text-sm font-semibold">Ingresar a Recepción</button>
+                </form>
+
+                <!-- Médico Login -->
+                <form onsubmit="loginMedico(event)" autocomplete="off" class="border-b pb-4 space-y-3">
+                    <h2 class="font-bold text-indigo-600 text-sm">Portal Médico</h2>
+                    <input type="text" id="medUsuario" name="username_med" placeholder="Usuario Médico" autocomplete="off" value="" required class="w-full p-2.5 border rounded text-sm">
+                    <input type="password" id="medClave" name="password_med" placeholder="Contraseña" autocomplete="new-password" value="" required class="w-full p-2.5 border rounded text-sm">
+                    <button class="w-full bg-indigo-600 hover:bg-indigo-700 text-white p-2.5 rounded text-sm font-semibold">Ingresar al Portal Médico</button>
+                </form>
+
+                <!-- Admin Login -->
+                <form onsubmit="loginAdmin(event)" autocomplete="off" class="space-y-3">
+                    <h2 class="font-bold text-amber-600 text-sm">Administración</h2>
+                    <input type="text" id="adminUsuario" name="username_admin" placeholder="Usuario Administrador" autocomplete="off" value="" required class="w-full p-2.5 border rounded text-sm">
+                    <input type="password" id="adminClave" name="password_admin" placeholder="Contraseña Master" autocomplete="new-password" value="" required class="w-full p-2.5 border rounded text-sm">
+                    <button class="w-full bg-amber-600 hover:bg-amber-700 text-white p-2.5 rounded text-sm font-semibold">Ingresar como Administrador</button>
+                </form>
+            </div>
+        </div>
+    </div>`;
+}
+ 
 
         // --- DASHBOARD ADMIN (MÉTRICAS + CREACIÓN DE MÉDICOS) ---
         function renderDashboardAdmin() {
