@@ -17,11 +17,10 @@
 
     <script>
         // --- CONFIGURACIÓN DE SUPABASE ---
-const SUPABASE_URL = 'https://bbokctujmmrtpaweslmf.supabase.co';
-const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJib2tjdHVqbW1ydHBhd2VzbG1mIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTI3MDczNDMsImV4cCI6MjEwODI4MzM0M30.nFYHYtsR-78yUn-C-LADOh_8z318ewcwdxBgOO0rwFc';
+        const SUPABASE_URL = 'https://bbokctujmmrtpaweslmf.supabase.co';
+        const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJib2tjdHVqbW1ydHBhd2VzbG1mIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTI3MDczNDMsImV4cCI6MjEwODI4MzM0M30.nFYHYtsR-78yUn-C-LADOh_8z318ewcwdxBgOO0rwFc';
 
-const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-
+        const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
         const BLOQUES_HORARIOS = [
             "08:00", "09:00", "10:00", "11:00",
@@ -33,7 +32,9 @@ const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
             medicos: [],
             turnos: [],
             filtroTexto: '',
-            filtroEstado: 'Todos'
+            filtroEstado: 'Todos',
+            fechaSeleccionadaMedico: new Date().toISOString().slice(0, 10),
+            pestanaMedicoActiva: 'agenda' // 'agenda' o 'historial'
         };
 
         // --- CARGA DE DATOS EN TIEMPO REAL ---
@@ -151,7 +152,7 @@ const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
             const nota = document.getElementById(`nota-${id}`).value;
             const { error } = await supabaseClient.from('turnos').update({ nota_consulta: nota, estado: 'Atendido' }).eq('id', id);
             if (!error) {
-                alert("✅ Historia clínica del turno guardada.");
+                alert("✅ Historia clínica del turno guardada y paciente atendido.");
                 await obtenerTurnos();
                 renderApp();
             }
@@ -205,46 +206,43 @@ const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
             if (window.lucide) lucide.createIcons();
         }
 
-       // --- COMPONENTE DE LOGIN (SIN AUTOCOMPLETADO NI VALORES SUGERIDOS) ---
-function renderLogin() {
-    return `
-    <div class="min-h-screen bg-slate-900 flex items-center justify-center p-4">
-        <div class="bg-white rounded-2xl shadow-2xl overflow-hidden max-w-md w-full p-8">
-            <div class="text-center mb-8">
-                <h1 class="text-2xl font-bold text-slate-800">Centro Médico</h1>
-                <p class="text-slate-500 text-sm">Acceso al Sistema Integrado</p>
-            </div>
-            <div class="space-y-6">
-                <!-- Recepción Login -->
-                <form onsubmit="loginSecretaria(event)" autocomplete="off" class="border-b pb-4 space-y-3">
-                    <h2 class="font-bold text-teal-600 text-sm">Recepción / Secretaría</h2>
-                    <input type="text" id="secUsuario" name="username_sec" placeholder="Usuario" autocomplete="off" value="" required class="w-full p-2.5 border rounded text-sm">
-                    <input type="password" id="secClave" name="password_sec" placeholder="Contraseña" autocomplete="new-password" value="" required class="w-full p-2.5 border rounded text-sm">
-                    <button class="w-full bg-teal-600 hover:bg-teal-700 text-white p-2.5 rounded text-sm font-semibold">Ingresar a Recepción</button>
-                </form>
+        // --- COMPONENTE DE LOGIN (SIN AUTOCOMPLETADO) ---
+        function renderLogin() {
+            return `
+            <div class="min-h-screen bg-slate-900 flex items-center justify-center p-4">
+                <div class="bg-white rounded-2xl shadow-2xl overflow-hidden max-w-md w-full p-8">
+                    <div class="text-center mb-8">
+                        <h1 class="text-2xl font-bold text-slate-800">Centro Médico</h1>
+                        <p class="text-slate-500 text-sm">Acceso al Sistema Integrado</p>
+                    </div>
+                    <div class="space-y-6">
+                        <!-- Recepción Login -->
+                        <form onsubmit="loginSecretaria(event)" autocomplete="off" class="border-b pb-4 space-y-3">
+                            <h2 class="font-bold text-teal-600 text-sm">Recepción / Secretaría</h2>
+                            <input type="text" id="secUsuario" name="username_sec" placeholder="Usuario" autocomplete="off" value="" required class="w-full p-2.5 border rounded text-sm">
+                            <input type="password" id="secClave" name="password_sec" placeholder="Contraseña" autocomplete="new-password" value="" required class="w-full p-2.5 border rounded text-sm">
+                            <button class="w-full bg-teal-600 hover:bg-teal-700 text-white p-2.5 rounded text-sm font-semibold">Ingresar a Recepción</button>
+                        </form>
+                        <!-- Médico Login -->
+                        <form onsubmit="loginMedico(event)" autocomplete="off" class="border-b pb-4 space-y-3">
+                            <h2 class="font-bold text-indigo-600 text-sm">Portal Médico</h2>
+                            <input type="text" id="medUsuario" name="username_med" placeholder="Usuario Médico" autocomplete="off" value="" required class="w-full p-2.5 border rounded text-sm">
+                            <input type="password" id="medClave" name="password_med" placeholder="Contraseña" autocomplete="new-password" value="" required class="w-full p-2.5 border rounded text-sm">
+                            <button class="w-full bg-indigo-600 hover:bg-indigo-700 text-white p-2.5 rounded text-sm font-semibold">Ingresar al Portal Médico</button>
+                        </form>
+                        <!-- Admin Login -->
+                        <form onsubmit="loginAdmin(event)" autocomplete="off" class="space-y-3">
+                            <h2 class="font-bold text-amber-600 text-sm">Administración</h2>
+                            <input type="text" id="adminUsuario" name="username_admin" placeholder="Usuario Administrador" autocomplete="off" value="" required class="w-full p-2.5 border rounded text-sm">
+                            <input type="password" id="adminClave" name="password_admin" placeholder="Contraseña Master" autocomplete="new-password" value="" required class="w-full p-2.5 border rounded text-sm">
+                            <button class="w-full bg-amber-600 hover:bg-amber-700 text-white p-2.5 rounded text-sm font-semibold">Ingresar como Administrador</button>
+                        </form>
+                    </div>
+                </div>
+            </div>`;
+        }
 
-                <!-- Médico Login -->
-                <form onsubmit="loginMedico(event)" autocomplete="off" class="border-b pb-4 space-y-3">
-                    <h2 class="font-bold text-indigo-600 text-sm">Portal Médico</h2>
-                    <input type="text" id="medUsuario" name="username_med" placeholder="Usuario Médico" autocomplete="off" value="" required class="w-full p-2.5 border rounded text-sm">
-                    <input type="password" id="medClave" name="password_med" placeholder="Contraseña" autocomplete="new-password" value="" required class="w-full p-2.5 border rounded text-sm">
-                    <button class="w-full bg-indigo-600 hover:bg-indigo-700 text-white p-2.5 rounded text-sm font-semibold">Ingresar al Portal Médico</button>
-                </form>
-
-                <!-- Admin Login -->
-                <form onsubmit="loginAdmin(event)" autocomplete="off" class="space-y-3">
-                    <h2 class="font-bold text-amber-600 text-sm">Administración</h2>
-                    <input type="text" id="adminUsuario" name="username_admin" placeholder="Usuario Administrador" autocomplete="off" value="" required class="w-full p-2.5 border rounded text-sm">
-                    <input type="password" id="adminClave" name="password_admin" placeholder="Contraseña Master" autocomplete="new-password" value="" required class="w-full p-2.5 border rounded text-sm">
-                    <button class="w-full bg-amber-600 hover:bg-amber-700 text-white p-2.5 rounded text-sm font-semibold">Ingresar como Administrador</button>
-                </form>
-            </div>
-        </div>
-    </div>`;
-}
- 
-
-        // --- DASHBOARD ADMIN (MÉTRICAS + CREACIÓN DE MÉDICOS) ---
+        // --- DASHBOARD ADMIN ---
         function renderDashboardAdmin() {
             const totalTurnos = state.turnos.length;
             const atendidos = state.turnos.filter(t => t.estado === 'Atendido').length;
@@ -256,7 +254,6 @@ function renderLogin() {
                     <h1 class="text-2xl font-bold text-slate-800">Panel de Administración General</h1>
                     <button onclick="logout()" class="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded text-sm">Salir</button>
                 </div>
-                <!-- MÉTRICAS -->
                 <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <div class="bg-white p-4 rounded-xl shadow border border-slate-200">
                         <p class="text-slate-500 text-xs font-bold uppercase">Total Turnos Registrados</p>
@@ -271,7 +268,6 @@ function renderLogin() {
                         <p class="text-3xl font-extrabold text-rose-600">${ausentes}</p>
                     </div>
                 </div>
-                <!-- REGISTRAR MÉDICO -->
                 <div class="bg-white p-6 rounded-xl shadow border border-slate-200">
                     <h2 class="text-lg font-bold text-slate-800 mb-4">Registrar Nuevo Médico / Profesional</h2>
                     <form onsubmit="registrarMedico(event)" class="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -282,7 +278,6 @@ function renderLogin() {
                         <button type="submit" class="md:col-span-2 bg-teal-600 hover:bg-teal-700 text-white p-3 rounded font-semibold text-sm">Guardar Médico</button>
                     </form>
                 </div>
-                <!-- LISTA DE MÉDICOS -->
                 <div class="bg-white p-6 rounded-xl shadow border border-slate-200">
                     <h2 class="text-lg font-bold text-slate-800 mb-4">Médicos Registrados</h2>
                     <div class="overflow-x-auto">
@@ -310,7 +305,7 @@ function renderLogin() {
             </div>`;
         }
 
-        // --- DASHBOARD SECRETARÍA (AGENDA, BÚSQUEDA, WHATSAPP, EXCEL) ---
+        // --- DASHBOARD SECRETARÍA ---
         function renderDashboardSecretaria() {
             let turnosFiltrados = state.turnos.filter(t => {
                 const coincideTexto = t.paciente.toLowerCase().includes(state.filtroTexto.toLowerCase()) || t.dni.includes(state.filtroTexto);
@@ -327,7 +322,6 @@ function renderLogin() {
                         <button onclick="logout()" class="bg-red-500 text-white px-4 py-2 rounded text-sm">Salir</button>
                     </div>
                 </div>
-                <!-- FORMULARIO DE NUEVO TURNO -->
                 <div class="bg-white p-6 rounded-xl shadow border border-slate-200">
                     <h2 class="text-lg font-bold text-slate-800 mb-4">Asignar Nuevo Turno</h2>
                     <form onsubmit="guardarTurnoNuevo(event)" class="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -346,7 +340,6 @@ function renderLogin() {
                         <button type="submit" class="md:col-span-3 bg-teal-600 hover:bg-teal-700 text-white p-3 rounded font-semibold text-sm">Confirmar y Guardar Turno</button>
                     </form>
                 </div>
-                <!-- FILTROS Y BÚSQUEDA -->
                 <div class="bg-white p-4 rounded-xl shadow flex gap-4">
                     <input type="text" placeholder="Buscar por Nombre o DNI..." value="${state.filtroTexto}" oninput="state.filtroTexto=this.value; renderApp();" class="p-2.5 border rounded text-sm flex-grow">
                     <select onchange="state.filtroEstado=this.value; renderApp();" class="p-2.5 border rounded text-sm">
@@ -356,7 +349,6 @@ function renderLogin() {
                         <option value="Cancelado">Cancelado</option>
                     </select>
                 </div>
-                <!-- TABLA DE TURNOS -->
                 <div class="bg-white rounded-xl shadow overflow-x-auto">
                     <table class="w-full text-left text-sm text-slate-600">
                         <thead class="bg-slate-50 border-b">
@@ -388,35 +380,86 @@ function renderLogin() {
             </div>`;
         }
 
-        // --- DASHBOARD MÉDICO (HISTORIA CLÍNICA) ---
+        // --- DASHBOARD MÉDICO CON CALENDARIO Y HISTORIAL CLÍNICO ---
         function renderDashboardMedico() {
             const misTurnos = state.turnos.filter(t => t.medico_id === state.usuarioActual.id);
+            const turnosDelDia = misTurnos.filter(t => t.fecha === state.fechaSeleccionadaMedico);
+            const turnosAtendidosHistorial = misTurnos.filter(t => t.estado === 'Atendido' && t.nota_consulta);
 
             return `
-            <div class="p-6 max-w-6xl mx-auto w-full space-y-6">
-                <div class="flex justify-between items-center">
-                    <h1 class="text-2xl font-bold text-slate-800">Portal Médico: ${state.usuarioActual.nombre}</h1>
-                    <button onclick="logout()" class="bg-red-500 text-white px-4 py-2 rounded text-sm">Salir</button>
+            <div class="p-6 max-w-5xl mx-auto w-full space-y-6">
+                <!-- CABECERA -->
+                <div class="flex flex-col md:flex-row justify-between items-start md:items-center bg-white p-6 rounded-xl shadow border border-slate-200 gap-4">
+                    <div>
+                        <h1 class="text-2xl font-bold text-slate-800">${state.usuarioActual.nombre}</h1>
+                        <p class="text-slate-500 text-sm">Especialidad: ${state.usuarioActual.especialidad}</p>
+                    </div>
+                    <button onclick="logout()" class="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded text-sm font-semibold">Cerrar Sesión</button>
                 </div>
-                <div class="space-y-4">
-                    ${misTurnos.length === 0 ? `<div class="bg-white p-6 rounded-xl shadow text-center text-slate-400">No tiene turnos asignados actualmente.</div>` :
-                        misTurnos.map(t => `
-                            <div class="bg-white p-4 rounded-xl shadow border border-slate-200 space-y-3">
-                                <div class="flex justify-between items-center">
-                                    <div>
-                                        <h3 class="font-bold text-slate-800">${t.paciente} (DNI: ${t.dni})</h3>
-                                        <p class="text-xs text-slate-500">Fecha: ${t.fecha} - Horario: ${t.hora} hs | Tel: ${t.telefono}</p>
+
+                <!-- PESTAÑAS DE NAVEGACIÓN MÉDICA -->
+                <div class="flex border-b border-slate-300">
+                    <button onclick="state.pestanaMedicoActiva='agenda'; renderApp();" class="py-2 px-6 font-semibold text-sm border-b-2 ${state.pestanaMedicoActiva==='agenda'?'border-indigo-600 text-indigo-600':'border-transparent text-slate-500'}">📅 Mi Agenda y Calendario</button>
+                    <button onclick="state.pestanaMedicoActiva='historial'; renderApp();" class="py-2 px-6 font-semibold text-sm border-b-2 ${state.pestanaMedicoActiva==='historial'?'border-indigo-600 text-indigo-600':'border-transparent text-slate-500'}">📂 Historial de Consultas Previas</button>
+                </div>
+
+                <!-- CONTENIDO: VISTA AGENDA Y CALENDARIO -->
+                ${state.pestanaMedicoActiva === 'agenda' ? `
+                    <div class="space-y-6">
+                        <!-- SELECTOR DE FECHA (CALENDARIO) -->
+                        <div class="bg-white p-4 rounded-xl shadow border border-slate-200 flex flex-col md:flex-row items-center justify-between gap-4">
+                            <span class="font-semibold text-sm text-slate-700">Seleccionar Día de Consulta:</span>
+                            <input type="date" value="${state.fechaSeleccionadaMedico}" onchange="state.fechaSeleccionadaMedico=this.value; renderApp();" class="p-2 border rounded text-sm bg-slate-50 font-medium">
+                        </div>
+
+                        <!-- LISTA DE TURNOS DEL DÍA SELECCIONADO -->
+                        <div class="space-y-4">
+                            <h2 class="text-lg font-bold text-slate-800">Turnos para el día: ${state.fechaSeleccionadaMedico}</h2>
+                            ${turnosDelDia.length === 0 ? `
+                                <div class="bg-white p-8 rounded-xl shadow text-center text-slate-400">
+                                    No tiene turnos programados para esta fecha.
+                                </div>
+                            ` : turnosDelDia.map(t => `
+                                <div class="bg-white p-5 rounded-xl shadow border border-slate-200 space-y-3">
+                                    <div class="flex justify-between items-center">
+                                        <div>
+                                            <span class="bg-indigo-50 text-indigo-700 font-bold px-2.5 py-1 rounded text-xs">${t.hora} hs</span>
+                                            <h3 class="font-bold text-slate-800 text-base mt-1">${t.paciente} (DNI: ${t.dni})</h3>
+                                            <p class="text-xs text-slate-500">Teléfono: ${t.telefono}</p>
+                                        </div>
+                                        <span class="px-3 py-1 rounded-full text-xs font-bold ${t.estado==='Atendido'?'bg-emerald-100 text-emerald-700':t.estado==='Cancelado'?'bg-rose-100 text-rose-700':'bg-amber-100 text-amber-700'}">${t.estado}</span>
                                     </div>
-                                    <span class="px-3 py-1 rounded-full text-xs font-bold ${t.estado==='Atendido'?'bg-emerald-100 text-emerald-700':'bg-amber-100 text-amber-700'}">${t.estado}</span>
+                                    <div>
+                                        <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Escribir Diagnóstico / Nota Clínica</label>
+                                        <textarea id="nota-${t.id}" placeholder="Detalles de la consulta, síntomas o tratamiento..." class="w-full p-2.5 border rounded text-sm h-20">${t.nota_consulta || ''}</textarea>
+                                    </div>
+                                    <button onclick="guardarNotaConsulta(${t.id})" class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded text-xs font-semibold">Guardar Ficha y Finalizar Turno</button>
+                                </div>
+                            `).join('')}
+                        </div>
+                    </div>
+                ` : `
+                    <!-- CONTENIDO: VISTA HISTORIAL CLÍNICO -->
+                    <div class="space-y-4">
+                        <h2 class="text-lg font-bold text-slate-800">Historial de Pacientes Atendidos</h2>
+                        ${turnosAtendidosHistorial.length === 0 ? `
+                            <div class="bg-white p-8 rounded-xl shadow text-center text-slate-400">
+                                Aún no hay consultas registradas en el historial.
+                            </div>
+                        ` : turnosAtendidosHistorial.map(t => `
+                            <div class="bg-white p-5 rounded-xl shadow border border-slate-200 space-y-2">
+                                <div class="flex justify-between items-center text-xs text-slate-500 border-b pb-2">
+                                    <span>📅 Fecha: <strong>${t.fecha}</strong> - ⏰ ${t.hora} hs</span>
+                                    <span class="bg-emerald-50 text-emerald-700 px-2 py-0.5 rounded font-bold">Atendido</span>
                                 </div>
                                 <div>
-                                    <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Historia Clínica / Notas de Consulta</label>
-                                    <textarea id="nota-${t.id}" placeholder="Escriba el diagnóstico y observaciones clínicas..." class="w-full p-2.5 border rounded text-sm h-24">${t.nota_consulta || ''}</textarea>
+                                    <h3 class="font-bold text-slate-800 text-sm">${t.paciente} <span class="text-slate-400 font-normal">(DNI: ${t.dni})</span></h3>
+                                    <p class="text-sm text-slate-600 mt-2 bg-slate-50 p-3 rounded border border-slate-100"><strong>Nota Clínica:</strong> ${t.nota_consulta}</p>
                                 </div>
-                                <button onclick="guardarNotaConsulta(${t.id})" class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded text-xs font-semibold">Guardar Ficha y Marcar Atendido</button>
                             </div>
                         `).join('')}
-                </div>
+                    </div>
+                `}
             </div>`;
         }
 
