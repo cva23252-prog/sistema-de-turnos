@@ -34,7 +34,7 @@
             filtroTexto: '',
             filtroEstado: 'Todos',
             fechaSeleccionadaMedico: new Date().toISOString().slice(0, 10),
-            pestanaMedicoActiva: 'agenda' // 'agenda' o 'historial'
+            pestanaMedicoActiva: 'agenda'
         };
 
         // --- CARGA DE DATOS EN TIEMPO REAL ---
@@ -80,7 +80,7 @@
             document.body.removeChild(link);
         }
 
-        // --- REGISTRO Y VALIDACIÓN ANTISOLAPAMIENTO ---
+        // --- REGISTRO Y ELIMINACIÓN DE MÉDICOS ---
         async function registrarMedico(e) {
             e.preventDefault();
             const form = e.target;
@@ -102,6 +102,18 @@
             }
         }
 
+        async function eliminarMedico(id) {
+            if (!confirm("¿Estás seguro de eliminar este médico del sistema?")) return;
+            const { error } = await supabaseClient.from('medicos').delete().eq('id', id);
+            if (error) {
+                alert("Error al eliminar médico: " + error.message);
+            } else {
+                alert("🗑️ Perfil médico eliminado correctamente.");
+                await cargarDatosIniciales();
+            }
+        }
+
+        // --- GESTIÓN DE TURNOS Y VALIDACIÓN ANTISOLAPAMIENTO ---
         async function guardarTurnoNuevo(e) {
             e.preventDefault();
             const form = e.target;
@@ -109,7 +121,6 @@
             const fecha = form.fecha.value;
             const hora = form.hora.value;
 
-            // Validación de Solapamiento
             const existeSolapamiento = state.turnos.some(t => 
                 t.medico_id == medico_id && t.fecha === fecha && t.hora === hora && t.estado !== 'Cancelado'
             );
@@ -139,7 +150,6 @@
             }
         }
 
-        // --- CAMBIO DE ESTADO Y FICHA CLÍNICA ---
         async function cambiarEstadoTurno(id, nuevoEstado) {
             const { error } = await supabaseClient.from('turnos').update({ estado: nuevoEstado }).eq('id', id);
             if (!error) {
@@ -206,7 +216,7 @@
             if (window.lucide) lucide.createIcons();
         }
 
-        // --- COMPONENTE DE LOGIN (CAMPOS LIMPIOS) ---
+        // --- COMPONENTE DE LOGIN (CAMPOS COMPLETAMENTE LIMPIOS) ---
         function renderLogin() {
             return `
             <div class="min-h-screen bg-slate-900 flex items-center justify-center p-4">
@@ -242,7 +252,7 @@
             </div>`;
         }
 
-        // --- DASHBOARD ADMIN ---
+        // --- DASHBOARD ADMIN (METRICAS, CREAR Y ELIMINAR MÉDICOS) ---
         function renderDashboardAdmin() {
             const totalTurnos = state.turnos.length;
             const atendidos = state.turnos.filter(t => t.estado === 'Atendido').length;
@@ -279,7 +289,7 @@
                     </form>
                 </div>
                 <div class="bg-white p-6 rounded-xl shadow border border-slate-200">
-                    <h2 class="text-lg font-bold text-slate-800 mb-4">Médicos Registrados</h2>
+                    <h2 class="text-lg font-bold text-slate-800 mb-4">Médicos Registrados y Gestión de Perfiles</h2>
                     <div class="overflow-x-auto">
                         <table class="w-full text-left text-sm text-slate-600">
                             <thead class="bg-slate-50 border-b">
@@ -287,15 +297,19 @@
                                     <th class="p-3">Nombre</th>
                                     <th class="p-3">Especialidad</th>
                                     <th class="p-3">Usuario</th>
+                                    <th class="p-3 text-right">Acciones</th>
                                 </tr>
                             </thead>
                             <tbody>
-                                ${state.medicos.length === 0 ? `<tr><td colspan="3" class="p-4 text-center text-slate-400">No hay médicos registrados.</td></tr>` : 
+                                ${state.medicos.length === 0 ? `<tr><td colspan="4" class="p-4 text-center text-slate-400">No hay médicos registrados.</td></tr>` : 
                                     state.medicos.map(m => `
-                                        <tr class="border-b">
+                                        <tr class="border-b hover:bg-slate-50">
                                             <td class="p-3 font-semibold text-slate-800">${m.nombre}</td>
                                             <td class="p-3">${m.especialidad}</td>
                                             <td class="p-3 text-indigo-600 font-mono">${m.usuario}</td>
+                                            <td class="p-3 text-right">
+                                                <button onclick="eliminarMedico(${m.id})" class="bg-rose-500 hover:bg-rose-600 text-white px-3 py-1.5 rounded text-xs font-semibold">Eliminar Perfil</button>
+                                            </td>
                                         </tr>
                                     `).join('')}
                             </tbody>
@@ -380,20 +394,14 @@
             </div>`;
         }
 
-        // --- DASHBOARD MÉDICO (CON CALENDARIO SUPERIOR Y DOS SOLAPAS SEPARADAS) ---
+        // --- DASHBOARD MÉDICO (CON CALENDARIO Y HISTORIAL SEPARADO) ---
         function renderDashboardMedico() {
-            // Todos los turnos asignados a este médico
             const misTurnos = state.turnos.filter(t => t.medico_id === state.usuarioActual.id);
-            
-            // Turnos para el día seleccionado en el calendario
             const turnosDelDia = misTurnos.filter(t => t.fecha === state.fechaSeleccionadaMedico);
-            
-            // Historial completo de pacientes que ya fueron ATENDIDOS
             const turnosAtendidosHistorial = misTurnos.filter(t => t.estado === 'Atendido');
 
             return `
             <div class="p-4 md:p-6 max-w-4xl mx-auto w-full space-y-6">
-                <!-- CABECERA DE BIENVENIDA -->
                 <div class="flex justify-between items-center bg-white p-5 rounded-2xl shadow-sm border border-slate-200">
                     <div>
                         <h1 class="text-xl md:text-2xl font-bold text-slate-800">Portal Médico: ${state.usuarioActual.nombre}</h1>
@@ -402,7 +410,6 @@
                     <button onclick="logout()" class="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-lg text-xs font-semibold shadow-sm transition">Salir</button>
                 </div>
 
-                <!-- SELECCIÓN DE PESTAÑA (AGENDA VS HISTORIAL) -->
                 <div class="grid grid-cols-2 gap-2 bg-slate-200 p-1.5 rounded-xl text-center text-sm font-semibold">
                     <button onclick="state.pestanaMedicoActiva='agenda'; renderApp();" class="py-2.5 rounded-lg transition ${state.pestanaMedicoActiva==='agenda'?'bg-white text-indigo-700 shadow-sm':'text-slate-600 hover:text-slate-900'}">
                         📅 Agenda y Calendario
@@ -412,22 +419,18 @@
                     </button>
                 </div>
 
-                <!-- PESTAÑA 1: AGENDA DEL DÍA CON CALENDARIO ARRIBA -->
                 ${state.pestanaMedicoActiva === 'agenda' ? `
                     <div class="space-y-4">
-                        <!-- CALENDARIO EN LA PARTE SUPERIOR -->
                         <div class="bg-indigo-900 text-white p-4 rounded-2xl shadow-md space-y-2">
                             <label class="block text-xs font-bold uppercase tracking-wider text-indigo-200">Seleccionar fecha en el calendario:</label>
                             <input type="date" value="${state.fechaSeleccionadaMedico}" onchange="state.fechaSeleccionadaMedico=this.value; renderApp();" class="w-full p-2.5 rounded-xl text-slate-900 font-semibold text-sm bg-white border-0 focus:ring-2 focus:ring-indigo-400">
                         </div>
 
-                        <!-- TITULO DE FECHA SELECCIONADA -->
                         <div class="flex justify-between items-center pt-2">
                             <h2 class="text-base font-bold text-slate-700">Pacientes para el día: <span class="text-indigo-600">${state.fechaSeleccionadaMedico}</span></h2>
                             <span class="text-xs bg-indigo-100 text-indigo-800 font-bold px-2.5 py-1 rounded-full">${turnosDelDia.length} Turno(s)</span>
                         </div>
 
-                        <!-- LISTA DE PACIENTES DE ESE DÍA -->
                         ${turnosDelDia.length === 0 ? `
                             <div class="bg-white p-8 rounded-2xl shadow-sm text-center text-slate-400 border border-slate-200">
                                 ☕ No hay turnos agendados para este día.
@@ -451,7 +454,6 @@
                         `).join('')}
                     </div>
                 ` : `
-                    <!-- PESTAÑA 2: HISTORIAL SEPARADO DE ATENDIDOS -->
                     <div class="space-y-4">
                         <h2 class="text-base font-bold text-slate-700">Historial Médico de Consultas Finalizadas</h2>
                         ${turnosAtendidosHistorial.length === 0 ? `
